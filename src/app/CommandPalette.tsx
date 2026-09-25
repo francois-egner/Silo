@@ -107,20 +107,20 @@ export function CommandPalette({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-start justify-center bg-ink-950/60 p-24 backdrop-blur-sm anim-fade-in">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-ink-600 bg-ink-800 shadow-2xl anim-fade-up">
+    <div className="fixed inset-0 z-[60] flex items-start justify-center bg-overlay p-20 anim-fade-in">
+      <div className="w-full max-w-md overflow-hidden rounded-lg border border-line bg-panel shadow-[var(--shadow)] anim-fade-up">
         <input
           autoFocus
-          className="w-full border-b border-ink-600 bg-transparent px-4 py-3 text-sm outline-none placeholder:text-mist-400"
+          className="w-full border-b border-line bg-transparent px-3 py-2.5 text-[13px] outline-none placeholder:text-muted"
           placeholder="Search accounts, buckets, actions…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <ul className="max-h-80 overflow-auto py-2">
+        <ul className="max-h-80 overflow-auto py-1">
           {actions.map((a) => (
             <li key={a.id}>
               <button
-                className="w-full px-4 py-2.5 text-left text-sm hover:bg-ink-700"
+                className="w-full px-3 py-1.5 text-left text-[13px] hover:bg-selected hover:text-on-accent"
                 onClick={a.run}
               >
                 {a.label}
@@ -128,12 +128,12 @@ export function CommandPalette({
             </li>
           ))}
           {!actions.length && (
-            <li className="px-4 py-6 text-center text-sm text-mist-400">
+            <li className="px-3 py-6 text-center text-[13px] text-muted">
               No matches
             </li>
           )}
         </ul>
-        <div className="border-t border-ink-600 px-4 py-2 text-xs text-mist-400">
+        <div className="border-t border-line px-3 py-1.5 text-[11px] text-muted">
           ⌘K / Ctrl+K to toggle
         </div>
       </div>

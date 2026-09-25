@@ -12,6 +12,7 @@ import {
   TransferPanel,
 } from "../features/objects/TransferPanel";
 import { BucketSettings } from "../features/policies/BucketSettings";
+import { SectionHeader } from "../shared/ui";
 import { CommandPalette } from "./CommandPalette";
 import { SidebarTree, type NavTarget } from "./SidebarTree";
 
@@ -133,34 +134,31 @@ export function AppShell() {
   };
 
   return (
-    <div className="mesh-bg grain relative flex h-full text-mist-100">
-      <aside className="relative z-10 flex w-64 shrink-0 flex-col border-r border-ink-700/80 bg-ink-900/50 backdrop-blur-md">
-        <div className="flex items-center gap-2 px-4 py-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/15 text-sm font-bold text-accent">
+    <div className="relative flex h-full bg-app text-fg">
+      <aside className="relative z-10 flex w-56 shrink-0 flex-col border-r border-line bg-sidebar">
+        <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
+          <div className="flex h-5 w-5 items-center justify-center rounded bg-accent text-[10px] font-bold text-on-accent">
             S
           </div>
-          <div>
-            <div className="text-base font-semibold tracking-tight">Silo</div>
-            <div className="text-[11px] text-mist-400">S3 client</div>
-          </div>
+          <div className="text-[13px] font-semibold tracking-tight">Silo</div>
         </div>
 
-        <nav className="flex min-h-0 flex-1 flex-col overflow-hidden px-2">
-          <button
-            className={`mb-2 flex w-full shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm ${
-              route.name === "accounts"
-                ? "bg-ink-700 text-mist-100"
-                : "text-mist-300 hover:bg-ink-800"
-            }`}
-            onClick={() => setRoute({ name: "accounts" })}
-          >
-            <Layers3 size={16} /> Accounts
-          </button>
-
-          <div className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-mist-400">
-            Browser
+        <nav className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="px-1.5 pt-1.5">
+            <button
+              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] ${
+                route.name === "accounts"
+                  ? "bg-selected text-on-accent"
+                  : "text-fg hover:bg-hover"
+              }`}
+              onClick={() => setRoute({ name: "accounts" })}
+            >
+              <Layers3 size={14} /> Accounts
+            </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+
+          <SectionHeader>Browser</SectionHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
             <SidebarTree
               accounts={sidebarAccounts}
               active={treeActive}
@@ -176,16 +174,16 @@ export function AppShell() {
         </nav>
 
         <button
-          className="m-3 flex items-center gap-2 rounded-lg border border-ink-600 px-3 py-2 text-xs text-mist-400 hover:border-ink-500 hover:text-mist-200"
+          className="m-2 flex h-7 items-center gap-2 rounded-md border border-line bg-panel px-2 text-[12px] text-muted hover:bg-hover hover:text-fg"
           onClick={() => setCommandOpen(true)}
         >
-          <Search size={14} />
+          <Search size={12} />
           Search
-          <span className="ml-auto font-mono text-[10px]">⌘K</span>
+          <span className="ml-auto font-mono text-[10px] opacity-70">⌘K</span>
         </button>
       </aside>
 
-      <main className="relative z-10 min-w-0 flex-1 overflow-hidden bg-ink-950/20">
+      <main className="relative z-10 min-w-0 flex-1 overflow-hidden bg-app">
         {route.name === "accounts" && (
           <AccountsHome
             onOpenBuckets={(accountId) =>

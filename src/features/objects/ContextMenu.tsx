@@ -80,34 +80,34 @@ export function ContextMenu({
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-[200] w-64 overflow-hidden rounded-xl border border-ink-600 bg-ink-800 shadow-2xl anim-fade-up"
+      className="fixed z-[200] w-56 overflow-hidden rounded-md border border-line bg-panel shadow-[var(--shadow)] anim-fade-up"
       style={{ left: pos.left, top: pos.top }}
       role="menu"
     >
       {header && (
-        <div className="border-b border-ink-700 px-3 py-2.5 text-sm font-medium text-mist-100">
+        <div className="border-b border-line px-2.5 py-2 text-[12px] font-medium text-fg">
           {header}
         </div>
       )}
       {info && info.length > 0 && (
-        <div className="space-y-1.5 border-b border-ink-700 px-3 py-2.5">
+        <div className="space-y-1 border-b border-line px-2.5 py-2">
           {info.map((row) => (
             <div key={row.label} className="flex gap-2 text-[11px] leading-snug">
-              <span className="w-16 shrink-0 text-mist-400">{row.label}</span>
-              <span className="min-w-0 break-all font-mono text-mist-200">
+              <span className="w-16 shrink-0 text-muted">{row.label}</span>
+              <span className="min-w-0 break-all font-mono text-fg">
                 {row.value}
               </span>
             </div>
           ))}
         </div>
       )}
-      <div className="py-1">
+      <div className="py-0.5">
         {items.map((item, i) => {
           if (item.kind === "sep") {
             return (
               <div
                 key={`sep-${i}`}
-                className="my-1 border-t border-ink-700"
+                className="my-0.5 border-t border-line"
               />
             );
           }
@@ -117,10 +117,10 @@ export function ContextMenu({
               type="button"
               role="menuitem"
               disabled={item.disabled}
-              className={`flex w-full px-3 py-2 text-left text-sm disabled:opacity-40 ${
+              className={`flex w-full px-2.5 py-1.5 text-left text-[12px] disabled:opacity-40 ${
                 item.danger
                   ? "text-danger hover:bg-danger/10"
-                  : "text-mist-100 hover:bg-ink-700"
+                  : "text-fg hover:bg-hover"
               }`}
               onClick={() => {
                 item.onSelect();

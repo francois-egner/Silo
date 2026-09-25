@@ -306,8 +306,8 @@ export function S3SplitTransferView({
 
   return (
     <div className="relative flex h-full min-h-0 select-none flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-ink-700 bg-ink-900/60 px-3 py-2">
-        <span className="text-[11px] uppercase tracking-wide text-mist-400">
+      <div className="flex shrink-0 items-center gap-2 border-b border-line bg-toolbar px-3 py-2">
+        <span className="text-[11px] uppercase tracking-wide text-muted">
           Destination
         </span>
         <Select
@@ -336,12 +336,12 @@ export function S3SplitTransferView({
           ))}
         </Select>
         {destBuckets.isLoading && (
-          <Spinner className="h-3.5 w-3.5 text-mist-400" />
+          <Spinner className="h-3.5 w-3.5 text-muted" />
         )}
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <div ref={leftRef} className="min-w-0 flex-1 border-r border-ink-700">
+        <div ref={leftRef} className="min-w-0 flex-1 border-r border-line">
           <S3Pane
             accountId={accountId}
             bucket={bucket}
@@ -441,7 +441,7 @@ export function S3SplitTransferView({
 
       {drag && cursor && (
         <div
-          className="pointer-events-none fixed z-50 max-w-xs truncate rounded-lg border border-accent/40 bg-ink-800 px-3 py-1.5 text-xs font-medium text-mist-100 shadow-xl"
+          className="pointer-events-none fixed z-50 max-w-xs truncate rounded-lg border border-accent/40 bg-panel px-3 py-1.5 text-xs font-medium text-fg shadow-xl"
           style={{ left: cursor.x + 12, top: cursor.y + 12 }}
         >
           → {drag.label}

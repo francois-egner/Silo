@@ -39,8 +39,8 @@ export function SortHeader({
       onPointerDown={(e) => e.stopPropagation()}
     >
       <span
-        className={`inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide ${
-          active ? "text-accent" : "text-mist-400 hover:text-mist-200"
+        className={`inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide ${
+          active ? "text-accent" : "text-muted hover:text-fg"
         }`}
       >
         {label}

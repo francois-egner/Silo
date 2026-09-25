@@ -181,10 +181,10 @@ export function AccountWizard({
             key={p}
             type="button"
             onClick={() => applyPreset(p)}
-            className={`rounded-lg border px-3 py-1.5 text-sm transition ${
+            className={`rounded-md border px-2.5 py-1 text-[12px] transition ${
               provider === p
-                ? "border-accent/50 bg-accent/10 text-accent"
-                : "border-ink-600 text-mist-300 hover:bg-ink-700"
+                ? "border-accent bg-selected-muted text-accent"
+                : "border-line text-muted hover:bg-hover"
             }`}
           >
             {PROVIDER_PRESETS[p].label}
@@ -250,7 +250,7 @@ export function AccountWizard({
         </Field>
       </div>
 
-      <label className="mb-5 flex items-center gap-2 text-sm text-mist-300">
+      <label className="mb-4 flex items-center gap-2 text-[13px] text-muted">
         <input
           type="checkbox"
           checked={forcePathStyle}
@@ -260,12 +260,12 @@ export function AccountWizard({
         Force path-style addressing (MinIO / some compatible stores)
       </label>
 
-      <div className="mb-5 rounded-xl border border-ink-600 bg-ink-900/40 p-4">
-        <div className="mb-3 text-xs font-medium uppercase tracking-wide text-mist-400">
+      <div className="mb-4 rounded-md border border-line bg-app p-3">
+        <div className="mb-2 text-[12px] font-medium text-muted">
           Buckets to display
         </div>
         <div className="mb-3 flex flex-col gap-2">
-          <label className="flex cursor-pointer items-start gap-2 text-sm text-mist-200">
+          <label className="flex cursor-pointer items-start gap-2 text-[13px] text-fg">
             <input
               type="radio"
               name="bucket-filter"
@@ -274,13 +274,13 @@ export function AccountWizard({
               onChange={() => setBucketFilterMode("all")}
             />
             <span>
-              <span className="font-medium text-mist-100">All buckets</span>
-              <span className="mt-0.5 block text-xs text-mist-400">
+              <span className="font-medium text-fg">All buckets</span>
+              <span className="mt-0.5 block text-[11px] text-muted">
                 Show every bucket this account can list
               </span>
             </span>
           </label>
-          <label className="flex cursor-pointer items-start gap-2 text-sm text-mist-200">
+          <label className="flex cursor-pointer items-start gap-2 text-[13px] text-fg">
             <input
               type="radio"
               name="bucket-filter"
@@ -289,8 +289,8 @@ export function AccountWizard({
               onChange={() => setBucketFilterMode("selected")}
             />
             <span>
-              <span className="font-medium text-mist-100">Selected buckets</span>
-              <span className="mt-0.5 block text-xs text-mist-400">
+              <span className="font-medium text-fg">Selected buckets</span>
+              <span className="mt-0.5 block text-[11px] text-muted">
                 Only show the buckets you pick below
               </span>
             </span>
@@ -300,22 +300,22 @@ export function AccountWizard({
         {bucketFilterMode === "selected" && (
           <div className="space-y-2">
             {loadingBuckets && (
-              <div className="flex items-center gap-2 text-xs text-mist-400">
+              <div className="flex items-center gap-2 text-[11px] text-muted">
                 <Loader2 size={12} className="animate-spin" /> Loading buckets…
               </div>
             )}
             {!loadingBuckets && bucketList.length === 0 && (
-              <p className="text-xs text-mist-400">
+              <p className="text-[11px] text-muted">
                 Test the connection to discover buckets, then select which ones
                 to show.
               </p>
             )}
             {bucketList.length > 0 && (
-              <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-ink-700 bg-ink-950/40 p-2">
+              <div className="max-h-40 space-y-0.5 overflow-y-auto rounded-md border border-line bg-panel p-1.5">
                 {bucketList.map((b) => (
                   <label
                     key={b}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-mist-200 hover:bg-ink-800"
+                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-[13px] text-fg hover:bg-hover"
                   >
                     <input
                       type="checkbox"
@@ -323,7 +323,7 @@ export function AccountWizard({
                       checked={visibleBuckets.includes(b)}
                       onChange={() => toggleBucket(b)}
                     />
-                    <span className="truncate font-mono text-[13px]">{b}</span>
+                    <span className="truncate font-mono text-[12px]">{b}</span>
                   </label>
                 ))}
               </div>
@@ -332,14 +332,14 @@ export function AccountWizard({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  className="text-xs text-accent hover:underline"
+                  className="text-[11px] text-accent hover:underline"
                   onClick={() => setVisibleBuckets([...bucketList])}
                 >
                   Select all
                 </button>
                 <button
                   type="button"
-                  className="text-xs text-mist-400 hover:underline"
+                  className="text-[11px] text-muted hover:underline"
                   onClick={() => setVisibleBuckets([])}
                 >
                   Clear
@@ -349,7 +349,7 @@ export function AccountWizard({
             {bucketFilterMode === "selected" &&
               visibleBuckets.length === 0 &&
               bucketList.length > 0 && (
-                <p className="text-xs text-warn">
+                <p className="text-[11px] text-warn">
                   Pick at least one bucket, or switch back to All buckets.
                 </p>
               )}
@@ -358,8 +358,8 @@ export function AccountWizard({
       </div>
 
       {testOk && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-ok/30 bg-ok/10 px-3 py-2 text-sm text-ok">
-          <Check size={16} /> {testOk}
+        <div className="mb-4 flex items-center gap-2 rounded-md border border-ok/30 bg-ok/10 px-3 py-2 text-[13px] text-ok">
+          <Check size={14} /> {testOk}
         </div>
       )}
 

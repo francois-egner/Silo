@@ -17,9 +17,22 @@ import {
   Upload,
 } from "lucide-react";
 import { api } from "../../lib/tauri";
-import type { ObjectEntry, TransferProgress } from "../../shared/types";
+import type {
+  BrowserViewMode,
+  ObjectEntry,
+  TransferProgress,
+} from "../../shared/types";
 import { useUiStore } from "../../shared/store";
-import { Button, Field, Input, Modal, Select } from "../../shared/ui";
+import {
+  Button,
+  Field,
+  Input,
+  Modal,
+  SegmentedControl,
+  Select,
+  Toolbar,
+  ToolbarButton,
+} from "../../shared/ui";
 import { CopyToModal } from "./CopyToModal";
 import { S3Pane } from "./S3Pane";
 import { S3SplitTransferView } from "./S3SplitTransferView";
@@ -318,157 +331,147 @@ export function ObjectBrowser({
   };
 
   return (
-    <div className="flex h-full flex-col anim-fade-in">
-      <header className="border-b border-ink-700 px-4 py-3">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <Button variant="ghost" className="px-2" onClick={onBack}>
-              <ArrowLeft size={16} />
-            </Button>
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-mist-100">
-                {bucket}
-              </div>
-              <div className="truncate font-mono text-[11px] text-mist-400">
-                {prefix || "/"}
-              </div>
+    <div className="flex h-full flex-col">
+      <Toolbar className="justify-between">
+        <div className="flex min-w-0 items-center gap-2">
+          <ToolbarButton onClick={onBack} title="Back">
+            <ArrowLeft size={14} />
+          </ToolbarButton>
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-semibold text-fg">
+              {bucket}
             </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex overflow-hidden rounded-lg border border-ink-600">
-              <button
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs ${
-                  viewMode === "single"
-                    ? "bg-ink-700 text-mist-100"
-                    : "text-mist-400 hover:bg-ink-800"
-                }`}
-                onClick={() => setViewMode("single")}
-                title="Single pane"
-              >
-                <PanelLeft size={14} /> Single
-              </button>
-              <button
-                className={`flex items-center gap-1.5 border-l border-ink-600 px-2.5 py-1.5 text-xs ${
-                  viewMode === "split"
-                    ? "bg-ink-700 text-mist-100"
-                    : "text-mist-400 hover:bg-ink-800"
-                }`}
-                onClick={() => setViewMode("split")}
-                title="Split Local | S3"
-              >
-                <Columns2 size={14} /> Local
-              </button>
-              <button
-                className={`flex items-center gap-1.5 border-l border-ink-600 px-2.5 py-1.5 text-xs ${
-                  viewMode === "s3s3"
-                    ? "bg-ink-700 text-mist-100"
-                    : "text-mist-400 hover:bg-ink-800"
-                }`}
-                onClick={() => setViewMode("s3s3")}
-                title="Split S3 | S3"
-              >
-                <ArrowLeftRight size={14} /> S3↔S3
-              </button>
+            <div className="truncate font-mono text-[11px] text-muted">
+              {prefix || "/"}
             </div>
-            <Button variant="subtle" onClick={() => setFolderOpen(true)}>
-              <FolderPlus size={16} /> Folder
-            </Button>
-            <Button onClick={() => upload.mutate()} disabled={upload.isPending}>
-              <Upload size={16} /> Upload
-            </Button>
-            <Button variant="ghost" onClick={onOpenSettings}>
-              Settings
-            </Button>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <SegmentedControl<BrowserViewMode>
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              {
+                value: "single",
+                title: "Single pane",
+                label: (
+                  <>
+                    <PanelLeft size={12} /> Single
+                  </>
+                ),
+              },
+              {
+                value: "split",
+                title: "Split Local | S3",
+                label: (
+                  <>
+                    <Columns2 size={12} /> Local
+                  </>
+                ),
+              },
+              {
+                value: "s3s3",
+                title: "Split S3 | S3",
+                label: (
+                  <>
+                    <ArrowLeftRight size={12} /> S3↔S3
+                  </>
+                ),
+              },
+            ]}
+          />
+          <ToolbarButton onClick={() => setFolderOpen(true)}>
+            <FolderPlus size={14} /> Folder
+          </ToolbarButton>
+          <ToolbarButton
+            className="bg-accent text-on-accent hover:bg-accent-hover"
+            onClick={() => upload.mutate()}
+            disabled={upload.isPending}
+          >
+            <Upload size={14} /> Upload
+          </ToolbarButton>
+          <ToolbarButton onClick={onOpenSettings}>Settings</ToolbarButton>
+        </div>
+      </Toolbar>
 
-        {selected.size > 0 && (
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-600 bg-ink-800/50 px-3 py-2">
-            <span className="text-sm text-mist-300">
-              {selected.size} selected
-            </span>
-            <Button
-              variant="subtle"
-              disabled={!selectedFiles.length}
-              onClick={() => download.mutate(selectedFiles.map((e) => e.key))}
-            >
-              <Download size={14} /> Download
-            </Button>
-            <Button
-              variant="subtle"
-              disabled={!selected.size}
-              onClick={() => {
-                const ents =
-                  objects.data?.entries.filter((e) => selected.has(e.key)) ??
-                  [];
-                if (!ents.length) return;
-                setCopyEntries(ents);
-                setCopyMove(false);
-                setCopyOpen(true);
-              }}
-            >
-              <Copy size={14} /> Copy to…
-            </Button>
-            <Button
-              variant="subtle"
-              disabled={selectedFiles.length !== 1}
-              onClick={() => {
-                const key = selectedFiles[0]?.key;
-                if (!key) return;
-                setRenameKey(key);
-                setRenameValue(key);
-                setRenameOpen(true);
-              }}
-            >
-              <Pencil size={14} /> Rename
-            </Button>
-            <Button
-              variant="subtle"
-              disabled={selectedFiles.length !== 1}
-              onClick={async () => {
-                const key = selectedFiles[0]?.key;
-                if (!key) return;
-                try {
-                  const url = await api.presignGet(accountId, bucket, key, 3600);
-                  await navigator.clipboard.writeText(url);
-                  showToast("Presigned URL copied (1h)", "ok");
-                } catch (e) {
-                  showToast(String(e), "err");
-                }
-              }}
-            >
-              <Link2 size={14} /> Presign
-            </Button>
-            <Button
-              variant="subtle"
-              disabled={selectedFiles.length !== 1}
-              onClick={() => {
-                const key = selectedFiles[0]?.key;
-                if (!key) return;
-                setAclKey(key);
-                setObjectAcl("private");
-                setAclOpen(true);
-              }}
-            >
-              ACL
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                const keys = [...selected];
-                if (confirm(`Delete ${keys.length} item(s)?`)) {
-                  remove.mutate(keys);
-                }
-              }}
-            >
-              <Trash2 size={14} /> Delete
-            </Button>
-            <Button variant="ghost" onClick={clearSelection}>
-              Clear
-            </Button>
-          </div>
-        )}
-      </header>
+      {selected.size > 0 && (
+        <div className="flex h-9 shrink-0 flex-wrap items-center gap-1.5 border-b border-line bg-panel px-3">
+          <span className="mr-1 text-[12px] text-muted">
+            {selected.size} selected
+          </span>
+          <ToolbarButton
+            disabled={!selectedFiles.length}
+            onClick={() => download.mutate(selectedFiles.map((e) => e.key))}
+          >
+            <Download size={12} /> Download
+          </ToolbarButton>
+          <ToolbarButton
+            disabled={!selected.size}
+            onClick={() => {
+              const ents =
+                objects.data?.entries.filter((e) => selected.has(e.key)) ?? [];
+              if (!ents.length) return;
+              setCopyEntries(ents);
+              setCopyMove(false);
+              setCopyOpen(true);
+            }}
+          >
+            <Copy size={12} /> Copy to…
+          </ToolbarButton>
+          <ToolbarButton
+            disabled={selectedFiles.length !== 1}
+            onClick={() => {
+              const key = selectedFiles[0]?.key;
+              if (!key) return;
+              setRenameKey(key);
+              setRenameValue(key);
+              setRenameOpen(true);
+            }}
+          >
+            <Pencil size={12} /> Rename
+          </ToolbarButton>
+          <ToolbarButton
+            disabled={selectedFiles.length !== 1}
+            onClick={async () => {
+              const key = selectedFiles[0]?.key;
+              if (!key) return;
+              try {
+                const url = await api.presignGet(accountId, bucket, key, 3600);
+                await navigator.clipboard.writeText(url);
+                showToast("Presigned URL copied (1h)", "ok");
+              } catch (e) {
+                showToast(String(e), "err");
+              }
+            }}
+          >
+            <Link2 size={12} /> Presign
+          </ToolbarButton>
+          <ToolbarButton
+            disabled={selectedFiles.length !== 1}
+            onClick={() => {
+              const key = selectedFiles[0]?.key;
+              if (!key) return;
+              setAclKey(key);
+              setObjectAcl("private");
+              setAclOpen(true);
+            }}
+          >
+            ACL
+          </ToolbarButton>
+          <ToolbarButton
+            className="text-danger"
+            onClick={() => {
+              const keys = [...selected];
+              if (confirm(`Delete ${keys.length} item(s)?`)) {
+                remove.mutate(keys);
+              }
+            }}
+          >
+            <Trash2 size={12} /> Delete
+          </ToolbarButton>
+          <ToolbarButton onClick={clearSelection}>Clear</ToolbarButton>
+        </div>
+      )}
 
       <div className="min-h-0 flex-1">
         {viewMode === "split" ? (
@@ -515,7 +518,7 @@ export function ObjectBrowser({
             onChange={(e) => setRenameValue(e.target.value)}
           />
         </Field>
-        <p className="mb-4 text-xs text-mist-400">
+        <p className="mb-4 text-[12px] text-muted">
           S3 has no native rename — Silo copies then deletes the source.
         </p>
         <div className="flex justify-end gap-2">
@@ -553,7 +556,7 @@ export function ObjectBrowser({
         onClose={() => setAclOpen(false)}
         title="Object ACL"
       >
-        <p className="mb-3 truncate font-mono text-xs text-mist-400">{aclKey}</p>
+        <p className="mb-3 truncate font-mono text-[12px] text-muted">{aclKey}</p>
         <Field label="Canned ACL">
           <Select
             value={objectAcl}

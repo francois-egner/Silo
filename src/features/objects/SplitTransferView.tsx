@@ -299,7 +299,7 @@ export function SplitTransferView({
 
   return (
     <div className="relative flex h-full min-h-0 select-none">
-      <div ref={localPaneRef} className="min-w-0 flex-1 border-r border-ink-700">
+      <div ref={localPaneRef} className="min-w-0 flex-1 border-r border-line">
         <LocalPane
           dropActive={dropTarget === "local" && drag?.source === "s3"}
           onRowPointerDown={beginLocalPointerDrag}
@@ -350,7 +350,7 @@ export function SplitTransferView({
 
       {drag && cursor && (
         <div
-          className="pointer-events-none fixed z-50 max-w-xs truncate rounded-lg border border-accent/40 bg-ink-800 px-3 py-1.5 text-xs font-medium text-mist-100 shadow-xl"
+          className="pointer-events-none fixed z-50 max-w-xs truncate rounded-lg border border-accent/40 bg-panel px-3 py-1.5 text-xs font-medium text-fg shadow-xl"
           style={{ left: cursor.x + 12, top: cursor.y + 12 }}
         >
           {drag.source === "local" ? "↑ " : "↓ "}

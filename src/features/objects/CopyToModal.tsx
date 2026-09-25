@@ -176,9 +176,9 @@ export function CopyToModal({
       onClose={onClose}
       title={deleteSourceDefault ? "Move to…" : "Copy to…"}
     >
-      <div className="mb-3 text-sm text-mist-400">
+      <div className="mb-3 text-sm text-muted">
         {entries.length} item{entries.length === 1 ? "" : "s"} from{" "}
-        <span className="font-mono text-mist-200">{sourceBucket}</span>
+        <span className="font-mono text-fg">{sourceBucket}</span>
       </div>
 
       <Field label="Destination account">
@@ -217,7 +217,7 @@ export function CopyToModal({
         />
       </Field>
 
-      <label className="mb-4 flex items-center gap-2 text-sm text-mist-300">
+      <label className="mb-4 flex items-center gap-2 text-sm text-muted">
         <input
           type="checkbox"
           className="accent-accent"

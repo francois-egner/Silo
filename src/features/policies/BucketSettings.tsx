@@ -4,7 +4,15 @@ import { AlertTriangle, ArrowLeft, Copy, FolderOpen } from "lucide-react";
 import { api } from "../../lib/tauri";
 import type { BucketSettingsTab } from "../../shared/types";
 import { useUiStore } from "../../shared/store";
-import { Button, Field, Select, Spinner, TextArea } from "../../shared/ui";
+import {
+  Button,
+  Field,
+  Select,
+  Spinner,
+  TextArea,
+  Toolbar,
+  ToolbarButton,
+} from "../../shared/ui";
 
 const CANNED = [
   "private",
@@ -371,37 +379,38 @@ export function BucketSettings({
     acl.includes("public") || /"Principal"\s*:\s*"\*"/i.test(policyText);
 
   return (
-    <div className="flex h-full flex-col anim-fade-in">
-      <header className="flex items-center gap-3 border-b border-ink-700 px-6 py-4">
-        <Button variant="ghost" className="px-2" onClick={onBack}>
-          <ArrowLeft size={16} />
-        </Button>
-        <div>
-          <h1 className="text-xl font-semibold">{bucket}</h1>
-          <p className="text-sm text-mist-400">Bucket configuration</p>
+    <div className="flex h-full flex-col">
+      <Toolbar>
+        <ToolbarButton onClick={onBack} title="Back">
+          <ArrowLeft size={14} />
+        </ToolbarButton>
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-semibold">{bucket}</div>
+          <div className="text-[11px] text-muted">Bucket configuration</div>
         </div>
-      </header>
+      </Toolbar>
 
-      <div className="flex gap-1 overflow-x-auto border-b border-ink-700 px-6 pt-3">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={`shrink-0 border-b-2 px-3 pb-3 text-sm font-medium ${
-              tab === t.id
-                ? "border-accent text-accent"
-                : "border-transparent text-mist-400 hover:text-mist-200"
-            }`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <div className="flex min-h-0 flex-1">
+        <nav className="flex w-40 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line bg-sidebar p-1.5">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              className={`rounded-md px-2 py-1.5 text-left text-[12px] font-medium ${
+                tab === t.id
+                  ? "bg-selected text-on-accent"
+                  : "text-fg hover:bg-hover"
+              }`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
 
-      <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto bg-panel p-4">
         {isPublicish && (tab === "access" || tab === "policy") && (
-          <div className="mb-5 flex items-start gap-3 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
-            <AlertTriangle className="mt-0.5 shrink-0" size={18} />
+          <div className="mb-4 flex items-start gap-2 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-[13px] text-warn">
+            <AlertTriangle className="mt-0.5 shrink-0" size={16} />
             <div>
               This configuration may allow public access. Double-check before
               applying changes to production data.
@@ -410,11 +419,11 @@ export function BucketSettings({
         )}
 
         {tab === "overview" && (
-          <div className="max-w-xl space-y-6">
+          <div className="max-w-xl space-y-5">
             <div>
-              <h3 className="mb-1 text-sm font-medium text-mist-300">Name</h3>
+              <h3 className="mb-1 text-[12px] font-medium text-muted">Name</h3>
               <div className="flex items-center gap-2">
-                <code className="flex-1 truncate rounded-lg border border-ink-600 bg-ink-800/50 px-3 py-2 font-mono text-sm">
+                <code className="flex-1 truncate rounded-md border border-line bg-input px-2.5 py-1.5 font-mono text-[13px]">
                   {bucket}
                 </code>
                 <Button
@@ -498,12 +507,12 @@ export function BucketSettings({
               Apply ACL
             </Button>
             <div className="mt-8">
-              <h3 className="mb-2 text-sm font-medium text-mist-300">
+              <h3 className="mb-2 text-sm font-medium text-muted">
                 Current grants
               </h3>
               {aclQuery.isLoading && <Spinner />}
               {aclDenied && (
-                <p className="text-sm text-mist-400">
+                <p className="text-sm text-muted">
                   This store denied ACL reads (common on Wasabi). Object browse
                   can still work — ACLs may be unsupported for this account.
                 </p>
@@ -513,12 +522,12 @@ export function BucketSettings({
                   {aclQuery.data.grants.map((g, i) => (
                     <li
                       key={i}
-                      className="rounded-lg border border-ink-600 bg-ink-800/40 px-3 py-2"
+                      className="rounded-lg border border-line bg-panel px-3 py-2"
                     >
-                      <div className="font-mono text-xs text-mist-400">
+                      <div className="font-mono text-xs text-muted">
                         {g.grantee}
                       </div>
-                      <div className="text-mist-200">{g.permission}</div>
+                      <div className="text-fg">{g.permission}</div>
                     </li>
                   ))}
                 </ul>
@@ -531,7 +540,7 @@ export function BucketSettings({
           <div className="max-w-3xl">
             {policyQuery.isLoading && <Spinner />}
             {policyDenied && (
-              <p className="mb-4 text-sm text-mist-400">
+              <p className="mb-4 text-sm text-muted">
                 Bucket policy reads were denied. Many S3-compatible stores
                 (including Wasabi) restrict or omit this API.
               </p>
@@ -590,16 +599,16 @@ export function BucketSettings({
           <div className="max-w-xl">
             {versionQuery.isLoading && <Spinner />}
             {versionDenied && (
-              <p className="mb-4 text-sm text-mist-400">
+              <p className="mb-4 text-sm text-muted">
                 Versioning API denied by this store.
               </p>
             )}
             {!versionDenied &&
               versionQuery.data &&
               "status" in versionQuery.data && (
-                <p className="mb-4 text-sm text-mist-400">
+                <p className="mb-4 text-sm text-muted">
                   Current status:{" "}
-                  <span className="font-medium text-mist-200">
+                  <span className="font-medium text-fg">
                     {versionQuery.data.status}
                   </span>
                 </p>
@@ -626,7 +635,7 @@ export function BucketSettings({
           <div className="max-w-3xl">
             {corsQuery.isLoading && <Spinner />}
             {corsDenied && (
-              <p className="mb-4 text-sm text-mist-400">
+              <p className="mb-4 text-sm text-muted">
                 CORS API denied by this store.
               </p>
             )}
@@ -676,7 +685,7 @@ export function BucketSettings({
           <div className="max-w-3xl">
             {lifecycleQuery.isLoading && <Spinner />}
             {lifecycleDenied && (
-              <p className="mb-4 text-sm text-mist-400">
+              <p className="mb-4 text-sm text-muted">
                 Lifecycle API denied by this store.
               </p>
             )}
@@ -736,16 +745,16 @@ export function BucketSettings({
           <div className="max-w-xl">
             {encQuery.isLoading && <Spinner />}
             {encDenied && (
-              <p className="mb-4 text-sm text-mist-400">
+              <p className="mb-4 text-sm text-muted">
                 Encryption API denied by this store.
               </p>
             )}
             {!encDenied &&
               encQuery.data &&
               "algorithm" in encQuery.data && (
-                <p className="mb-4 text-sm text-mist-400">
+                <p className="mb-4 text-sm text-muted">
                   Current:{" "}
-                  <span className="font-medium text-mist-200">
+                  <span className="font-medium text-fg">
                     {encQuery.data.algorithm ?? "None"}
                   </span>
                 </p>
@@ -769,6 +778,7 @@ export function BucketSettings({
             </Button>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

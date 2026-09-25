@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Copy,
+  HardDrive,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -10,7 +11,13 @@ import {
 import { api } from "../../lib/tauri";
 import { PROVIDER_PRESETS } from "../../shared/types";
 import { useUiStore } from "../../shared/store";
-import { Button, EmptyState, Spinner } from "../../shared/ui";
+import {
+  Button,
+  EmptyState,
+  Spinner,
+  Toolbar,
+  ToolbarButton,
+} from "../../shared/ui";
 import { AccountWizard } from "./AccountWizard";
 
 export function AccountsHome({
@@ -62,8 +69,9 @@ export function AccountsHome({
     return (
       <>
         <EmptyState
-          title="Your S3 workspace starts here"
-          body="Add an AWS or S3-compatible account to browse buckets, transfer files, and manage policies."
+          icon={<HardDrive size={28} />}
+          title="No accounts yet"
+          body="Add an AWS or S3-compatible account to browse buckets and transfer files."
           action={
             <Button
               onClick={() => {
@@ -71,7 +79,7 @@ export function AccountsHome({
                 setWizardOpen(true);
               }}
             >
-              <Plus size={16} /> Add account
+              <Plus size={14} /> Add account
             </Button>
           }
         />
@@ -85,89 +93,118 @@ export function AccountsHome({
   }
 
   return (
-    <div className="flex h-full flex-col anim-fade-in">
-      <header className="flex items-center justify-between border-b border-ink-700 px-6 py-4">
-        <div>
-          <h1 className="text-xl font-semibold">Accounts</h1>
-          <p className="text-sm text-mist-400">
-            Switch between AWS and compatible stores
-          </p>
+    <div className="flex h-full flex-col">
+      <Toolbar className="justify-between">
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold">Accounts</div>
+          <div className="text-[11px] text-muted">
+            {accounts.data.length} account
+            {accounts.data.length === 1 ? "" : "s"}
+          </div>
         </div>
-        <Button
+        <ToolbarButton
+          className="bg-accent text-on-accent hover:bg-accent-hover"
           onClick={() => {
             setEditId(null);
             setWizardOpen(true);
           }}
         >
-          <Plus size={16} /> Add account
-        </Button>
-      </header>
+          <Plus size={14} /> Add account
+        </ToolbarButton>
+      </Toolbar>
 
-      <div className="stagger grid gap-3 p-6 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="flex-1 overflow-auto bg-panel">
+        <div className="sticky top-0 z-[1] grid grid-cols-[1fr_140px_120px_minmax(0,1.2fr)_36px] gap-2 border-b border-line bg-toolbar px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+          <div>Name</div>
+          <div>Provider</div>
+          <div>Region</div>
+          <div>Access key</div>
+          <div />
+        </div>
         {accounts.data.map((a) => {
           const active = a.id === activeId;
           return (
             <div
               key={a.id}
-              className={`group relative rounded-xl border p-4 transition ${
-                active
-                  ? "border-accent/40 bg-accent/5"
-                  : "border-ink-600 bg-ink-800/40 hover:border-ink-500"
+              className={`group relative grid grid-cols-[1fr_140px_120px_minmax(0,1.2fr)_36px] items-center gap-2 border-b border-line px-3 py-1.5 ${
+                active ? "bg-selected-muted" : "hover:bg-hover"
               }`}
             >
               <button
-                className="w-full text-left"
+                className="min-w-0 truncate text-left text-[13px] font-medium text-fg"
                 onClick={async () => {
                   await api.setActiveAccount(a.id);
                   setActive(a.id);
                   onOpenBuckets(a.id);
                 }}
               >
-                <div className="mb-1 text-xs uppercase tracking-wide text-mist-400">
-                  {PROVIDER_PRESETS[a.provider as keyof typeof PROVIDER_PRESETS].label}
-                </div>
-                <div className="mb-3 text-lg font-semibold text-mist-100">
-                  {a.name}
-                </div>
-                <div className="font-mono text-xs text-mist-400">
-                  {a.region}
-                  {a.endpointUrl ? ` · ${a.endpointUrl}` : ""}
-                </div>
-                <div className="mt-2 truncate font-mono text-xs text-mist-400/80">
-                  {a.accessKeyId}
-                </div>
+                {a.name}
+              </button>
+              <button
+                className="truncate text-left text-[12px] text-muted"
+                onClick={async () => {
+                  await api.setActiveAccount(a.id);
+                  setActive(a.id);
+                  onOpenBuckets(a.id);
+                }}
+              >
+                {
+                  PROVIDER_PRESETS[a.provider as keyof typeof PROVIDER_PRESETS]
+                    .label
+                }
+              </button>
+              <button
+                className="truncate text-left font-mono text-[12px] text-muted"
+                onClick={async () => {
+                  await api.setActiveAccount(a.id);
+                  setActive(a.id);
+                  onOpenBuckets(a.id);
+                }}
+              >
+                {a.region}
+              </button>
+              <button
+                className="truncate text-left font-mono text-[12px] text-muted"
+                onClick={async () => {
+                  await api.setActiveAccount(a.id);
+                  setActive(a.id);
+                  onOpenBuckets(a.id);
+                }}
+                title={a.endpointUrl ?? a.accessKeyId}
+              >
+                {a.accessKeyId}
               </button>
 
-              <div className="absolute right-3 top-3">
+              <div className="relative flex justify-end">
                 <button
-                  className="rounded-md p-1.5 text-mist-400 hover:bg-ink-700 hover:text-mist-100"
+                  className="rounded p-1 text-muted hover:bg-hover hover:text-fg"
                   onClick={() => setMenuId(menuId === a.id ? null : a.id)}
                 >
-                  <MoreHorizontal size={16} />
+                  <MoreHorizontal size={14} />
                 </button>
                 {menuId === a.id && (
-                  <div className="absolute right-0 z-10 mt-1 w-40 overflow-hidden rounded-lg border border-ink-600 bg-ink-800 shadow-xl">
+                  <div className="absolute right-0 top-7 z-10 w-36 overflow-hidden rounded-md border border-line bg-panel shadow-[var(--shadow)]">
                     <button
-                      className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-ink-700"
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-[12px] hover:bg-hover"
                       onClick={() => {
                         setEditId(a.id);
                         setWizardOpen(true);
                         setMenuId(null);
                       }}
                     >
-                      <Pencil size={14} /> Edit
+                      <Pencil size={12} /> Edit
                     </button>
                     <button
-                      className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-ink-700"
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-[12px] hover:bg-hover"
                       onClick={() => {
                         dup.mutate(a.id);
                         setMenuId(null);
                       }}
                     >
-                      <Copy size={14} /> Duplicate
+                      <Copy size={12} /> Duplicate
                     </button>
                     <button
-                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger hover:bg-ink-700"
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-[12px] text-danger hover:bg-hover"
                       onClick={() => {
                         if (confirm(`Delete account “${a.name}”?`)) {
                           remove.mutate(a.id);
@@ -175,7 +212,7 @@ export function AccountsHome({
                         setMenuId(null);
                       }}
                     >
-                      <Trash2 size={14} /> Delete
+                      <Trash2 size={12} /> Delete
                     </button>
                   </div>
                 )}

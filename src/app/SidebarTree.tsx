@@ -81,14 +81,14 @@ function FolderBranch({
       <div
         className={`group flex w-full items-center gap-0.5 rounded-md text-left text-[13px] ${
           isActive
-            ? "bg-accent/15 text-accent"
-            : "text-mist-300 hover:bg-ink-800 hover:text-mist-100"
+            ? "bg-selected text-on-accent"
+            : "text-fg hover:bg-hover"
         }`}
         style={{ paddingLeft: 8 + depth * 12 }}
       >
         <button
           type="button"
-          className="shrink-0 rounded p-0.5 text-mist-400 hover:text-mist-100"
+          className="shrink-0 rounded p-0.5 text-muted hover:text-fg"
           onClick={(e) => {
             e.stopPropagation();
             toggle(id);
@@ -110,7 +110,7 @@ function FolderBranch({
           }
           onDoubleClick={() => toggle(id)}
         >
-          <Folder size={13} className="shrink-0 text-accent/80" />
+          <Folder size={13} className="shrink-0 opacity-80" />
           <span className="truncate">{name}</span>
         </button>
       </div>
@@ -235,8 +235,8 @@ function BucketBranch({
       <div
         className={`group flex w-full select-none items-center gap-0.5 rounded-md text-left text-[13px] ${
           isActive
-            ? "bg-accent/15 text-accent"
-            : "text-mist-300 hover:bg-ink-800 hover:text-mist-100"
+            ? "bg-selected text-on-accent"
+            : "text-fg hover:bg-hover"
         }`}
         style={{ paddingLeft: 8 + depth * 12 }}
         onContextMenu={(e) => {
@@ -248,7 +248,7 @@ function BucketBranch({
       >
         <button
           type="button"
-          className="shrink-0 rounded p-0.5 text-mist-400 hover:text-mist-100"
+          className="shrink-0 rounded p-0.5 text-muted hover:text-fg"
           onClick={(e) => {
             e.stopPropagation();
             toggle(id);
@@ -338,17 +338,17 @@ function AccountBranch({
   return (
     <div className="mb-0.5">
       <div
-        className={`group flex w-full items-center gap-0.5 rounded-md text-left text-sm ${
+        className={`group flex w-full items-center gap-0.5 rounded-md text-left text-[13px] ${
           isActiveAccount
-            ? "bg-accent/15 text-accent"
+            ? "bg-selected text-on-accent"
             : active.accountId === account.id
-              ? "text-mist-100"
-              : "text-mist-300 hover:bg-ink-800 hover:text-mist-100"
+              ? "text-fg"
+              : "text-fg hover:bg-hover"
         }`}
       >
         <button
           type="button"
-          className="ml-1 shrink-0 rounded p-0.5 text-mist-400 hover:text-mist-100"
+          className="ml-1 shrink-0 rounded p-0.5 text-muted hover:text-fg"
           onClick={(e) => {
             e.stopPropagation();
             toggle(id);
@@ -444,7 +444,7 @@ export function SidebarTree({
         />
       ))}
       {!accounts.length && (
-        <p className="px-3 py-2 text-xs text-mist-400">No accounts yet</p>
+        <p className="px-2 py-2 text-[12px] text-muted">No accounts yet</p>
       )}
     </div>
   );

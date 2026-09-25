@@ -4,7 +4,15 @@ import { ArrowLeft, FolderOpen, Plus, Settings, Trash2 } from "lucide-react";
 import { api, formatDate } from "../../lib/tauri";
 import { filterVisibleBuckets } from "../../shared/buckets";
 import { useUiStore } from "../../shared/store";
-import { Button, Field, Input, Modal, Spinner } from "../../shared/ui";
+import {
+  Button,
+  Field,
+  Input,
+  Modal,
+  Spinner,
+  Toolbar,
+  ToolbarButton,
+} from "../../shared/ui";
 
 export function BucketsView({
   accountId,
@@ -78,103 +86,96 @@ export function BucketsView({
   });
 
   return (
-    <div className="flex h-full flex-col anim-fade-in">
-      <header className="flex items-center justify-between border-b border-ink-700 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" onClick={onBack} className="px-2">
-            <ArrowLeft size={16} />
-          </Button>
-          <div>
-            <h1 className="text-xl font-semibold">
+    <div className="flex h-full flex-col">
+      <Toolbar className="justify-between">
+        <div className="flex min-w-0 items-center gap-2">
+          <ToolbarButton onClick={onBack} title="Back">
+            <ArrowLeft size={14} />
+          </ToolbarButton>
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-semibold">
               {account?.name ?? "Buckets"}
-            </h1>
-            <p className="text-sm text-mist-400">
+            </div>
+            <div className="text-[11px] text-muted">
               {visible.length} bucket{visible.length === 1 ? "" : "s"}
               {account?.bucketFilterMode === "selected" &&
                 buckets.data &&
                 buckets.data.length !== visible.length && (
-                  <span>
-                    {" "}
-                    · {buckets.data.length} found
-                  </span>
+                  <span> · {buckets.data.length} found</span>
                 )}
-            </p>
+            </div>
           </div>
         </div>
-        <Button
+        <ToolbarButton
+          className="bg-accent text-on-accent hover:bg-accent-hover"
           onClick={() => {
             setRegion(account?.region ?? "us-east-1");
             setCreateOpen(true);
           }}
         >
-          <Plus size={16} /> Create bucket
-        </Button>
-      </header>
+          <Plus size={14} /> Create bucket
+        </ToolbarButton>
+      </Toolbar>
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto bg-panel">
         {buckets.isLoading && (
-          <div className="flex justify-center py-20">
+          <div className="flex justify-center py-16">
             <Spinner className="h-6 w-6" />
           </div>
         )}
         {buckets.isError && (
-          <div className="rounded-xl border border-danger/30 bg-danger/10 p-4 text-danger">
+          <div className="m-3 rounded-md border border-danger/30 bg-danger/10 p-3 text-[13px] text-danger">
             {String(buckets.error)}
           </div>
         )}
         {buckets.data && visible.length === 0 && (
-          <div className="py-20 text-center text-mist-400">
+          <div className="py-16 text-center text-[13px] text-muted">
             {account?.bucketFilterMode === "selected"
               ? "No selected buckets. Edit the account to choose which buckets to display."
               : "No buckets yet. Create one to start uploading objects."}
           </div>
         )}
-        <div className="stagger divide-y divide-ink-700 overflow-hidden rounded-xl border border-ink-600">
-          {visible.map((b) => (
-            <div
-              key={b.name}
-              className="flex items-center gap-3 bg-ink-800/30 px-4 py-3 hover:bg-ink-800/60"
+        {visible.map((b) => (
+          <div
+            key={b.name}
+            className="flex items-center gap-2 border-b border-line px-3 py-1.5 hover:bg-hover"
+          >
+            <button
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              onClick={() => onOpenBucket(b.name)}
             >
-              <button
-                className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                onClick={() => onOpenBucket(b.name)}
-              >
-                <FolderOpen className="shrink-0 text-accent" size={18} />
-                <div className="min-w-0">
-                  <div className="truncate font-medium text-mist-100">
-                    {b.name}
-                  </div>
-                  <div className="text-xs text-mist-400">
-                    Created {formatDate(b.creationDate)}
-                  </div>
+              <FolderOpen className="shrink-0 text-muted" size={15} />
+              <div className="min-w-0">
+                <div className="truncate text-[13px] font-medium text-fg">
+                  {b.name}
                 </div>
-              </button>
-              <Button
-                variant="ghost"
-                className="px-2"
-                title="Bucket settings"
-                onClick={() => onOpenSettings(b.name)}
-              >
-                <Settings size={16} />
-              </Button>
-              <Button
-                variant="ghost"
-                className="px-2 text-danger"
-                onClick={() => {
-                  if (
-                    confirm(
-                      `Delete empty bucket “${b.name}”? This fails if the bucket is not empty.`,
-                    )
-                  ) {
-                    remove.mutate(b.name);
-                  }
-                }}
-              >
-                <Trash2 size={16} />
-              </Button>
-            </div>
-          ))}
-        </div>
+                <div className="text-[11px] text-muted">
+                  Created {formatDate(b.creationDate)}
+                </div>
+              </div>
+            </button>
+            <ToolbarButton
+              title="Bucket settings"
+              onClick={() => onOpenSettings(b.name)}
+            >
+              <Settings size={14} />
+            </ToolbarButton>
+            <ToolbarButton
+              className="text-danger"
+              onClick={() => {
+                if (
+                  confirm(
+                    `Delete empty bucket “${b.name}”? This fails if the bucket is not empty.`,
+                  )
+                ) {
+                  remove.mutate(b.name);
+                }
+              }}
+            >
+              <Trash2 size={14} />
+            </ToolbarButton>
+          </div>
+        ))}
       </div>
 
       <Modal

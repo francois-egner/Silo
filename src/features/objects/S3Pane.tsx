@@ -311,11 +311,11 @@ export function S3Pane({
       {dropActive && (
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 z-30 rounded-sm bg-accent/5 shadow-[inset_0_0_0_2px_rgba(45,212,191,0.6)]"
+          className="pointer-events-none absolute inset-0 z-30 rounded-sm bg-selected-muted shadow-[inset_0_0_0_2px_var(--accent)]"
         />
       )}
-      <nav className="relative z-0 flex h-10 shrink-0 items-center gap-1 overflow-hidden border-b border-ink-700/80 px-3 text-xs">
-        <span className="mr-1 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-mist-400">
+      <nav className="relative z-0 flex h-8 shrink-0 items-center gap-1 overflow-hidden border-b border-line bg-panel px-2 text-[12px]">
+        <span className="mr-1 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted">
           S3
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
@@ -326,14 +326,14 @@ export function S3Pane({
                 key={c.prefix + c.label}
                 className={`flex items-center gap-1 ${isLast ? "min-w-0" : "shrink-0"}`}
               >
-                {i > 0 && <span className="shrink-0 text-mist-400">/</span>}
+                {i > 0 && <span className="shrink-0 text-muted">/</span>}
                 <button
                   type="button"
                   title={c.label}
-                  className={`rounded px-1.5 py-0.5 hover:bg-ink-700 ${
+                  className={`rounded px-1.5 py-0.5 hover:bg-hover ${
                     isLast
-                      ? "min-w-0 truncate font-semibold text-mist-100"
-                      : "max-w-[9rem] truncate text-mist-400"
+                      ? "min-w-0 truncate font-medium text-fg"
+                      : "max-w-[9rem] truncate text-muted"
                   }`}
                   onClick={() => onPrefixChange(c.prefix)}
                 >
@@ -345,27 +345,27 @@ export function S3Pane({
         </div>
       </nav>
 
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto bg-panel">
         {loading && (
           <div className="flex justify-center py-16">
             <Spinner className="h-6 w-6" />
           </div>
         )}
         {error && (
-          <div className="m-4 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
+          <div className="m-3 rounded-md border border-danger/30 bg-danger/10 p-3 text-[13px] text-danger">
             {String(error)}
           </div>
         )}
         {!loading && !error && entries.length === 0 && (
-          <div className="py-16 text-center text-sm text-mist-400">
+          <div className="py-16 text-center text-[13px] text-muted">
             This folder is empty. Drop files here or use Upload.
           </div>
         )}
 
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-ink-900/95 text-left text-xs uppercase tracking-wide backdrop-blur">
+        <table className="w-full text-[13px]">
+          <thead className="sticky top-0 z-10 bg-toolbar text-left text-[11px] uppercase tracking-wide text-muted">
             <tr>
-              <th className="w-10 px-3 py-2.5">
+              <th className="w-9 px-2 py-1.5">
                 <input
                   type="checkbox"
                   className="accent-accent"
@@ -383,14 +383,14 @@ export function S3Pane({
                 column="name"
                 sort={sort}
                 onSort={(key) => setSort((s) => toggleSort(s, key))}
-                className="px-2 py-2.5"
+                className="px-2 py-1.5"
               />
               <SortHeader
                 label="Size"
                 column="size"
                 sort={sort}
                 onSort={(key) => setSort((s) => toggleSort(s, key))}
-                className="w-24 px-3 py-2.5"
+                className="w-24 px-2 py-1.5"
               />
               {!compact && (
                 <SortHeader
@@ -398,19 +398,19 @@ export function S3Pane({
                   column="modified"
                   sort={sort}
                   onSort={(key) => setSort((s) => toggleSort(s, key))}
-                  className="w-40 px-3 py-2.5"
+                  className="w-40 px-2 py-1.5"
                 />
               )}
             </tr>
           </thead>
-          <tbody className="stagger divide-y divide-ink-700/80">
+          <tbody className="divide-y divide-line">
             {sortedEntries.map((entry) => {
               const isSelected = selected.has(entry.key);
               return (
                 <tr
                   key={entry.key}
-                  className={`cursor-grab active:cursor-grabbing hover:bg-ink-800/50 ${
-                    isSelected ? "bg-accent/5" : ""
+                  className={`cursor-grab active:cursor-grabbing hover:bg-hover ${
+                    isSelected ? "bg-selected-muted" : ""
                   }`}
                   onDoubleClick={() => onOpenEntry(entry)}
                   onContextMenu={(e) => openMenu(e, entry)}
@@ -422,7 +422,7 @@ export function S3Pane({
                   }}
                   onClick={() => onOpenEntry(entry)}
                 >
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-1">
                     <input
                       type="checkbox"
                       className="accent-accent"
@@ -431,23 +431,23 @@ export function S3Pane({
                       onClick={(e) => e.stopPropagation()}
                     />
                   </td>
-                  <td className="px-2 py-2">
+                  <td className="px-2 py-1">
                     <div className="flex max-w-md items-center gap-2 text-left">
                       {entry.isFolder ? (
-                        <Folder size={16} className="shrink-0 text-accent" />
+                        <Folder size={14} className="shrink-0 text-muted" />
                       ) : (
-                        <File size={16} className="shrink-0 text-mist-400" />
+                        <File size={14} className="shrink-0 text-muted" />
                       )}
-                      <span className="truncate font-medium text-mist-100">
+                      <span className="truncate font-medium text-fg">
                         {entry.name}
                       </span>
                     </div>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 font-mono text-mist-400">
+                  <td className="whitespace-nowrap px-2 py-1 font-mono text-muted">
                     {entry.isFolder ? "—" : formatBytes(entry.size)}
                   </td>
                   {!compact && (
-                    <td className="whitespace-nowrap px-3 py-2 text-mist-400">
+                    <td className="whitespace-nowrap px-2 py-1 text-muted">
                       {formatDate(entry.lastModified)}
                     </td>
                   )}
@@ -466,9 +466,9 @@ export function S3Pane({
         header={
           <div className="flex items-center gap-2 truncate">
             {menu?.entry.isFolder ? (
-              <Folder size={14} className="shrink-0 text-accent" />
+              <Folder size={14} className="shrink-0 text-muted" />
             ) : (
-              <File size={14} className="shrink-0 text-mist-400" />
+              <File size={14} className="shrink-0 text-muted" />
             )}
             <span className="truncate">{menu?.entry.name}</span>
           </div>
