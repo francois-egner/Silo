@@ -369,8 +369,25 @@ pub async fn copy_objects(
     for item in items {
         let id = Uuid::new_v4().to_string();
         ids.push(id.clone());
+
+        if src_bucket == dest_bucket && item.source_key == item.dest_key {
+            emit_progress(
+                app,
+                &TransferProgress {
+                    id,
+                    kind: "copy".into(),
+                    key: item.dest_key,
+                    bytes: 0,
+                    total: 0,
+                    status: "error".into(),
+                    error: Some("Same location — nothing to copy".into()),
+                },
+            );
+            continue;
+        }
+
         let result = if same_account {
-            server_copy_one(
+            match server_copy_one(
                 app,
                 dest_client,
                 src_bucket,
@@ -380,6 +397,24 @@ pub async fn copy_objects(
                 &id,
             )
             .await
+            {
+                Ok(()) => Ok(()),
+                // Some S3-compatible stores mishandle CopyObject (e.g. odd NoSuchKey);
+                // fall back to GetObject + PutObject which already works for downloads.
+                Err(_) => {
+                    stream_copy_one(
+                        app,
+                        src_client,
+                        dest_client,
+                        src_bucket,
+                        dest_bucket,
+                        &item.source_key,
+                        &item.dest_key,
+                        &id,
+                    )
+                    .await
+                }
+            }
         } else {
             stream_copy_one(
                 app,
@@ -467,7 +502,17 @@ async fn stream_copy_one(
         .key(source_key)
         .send()
         .await
-        .map_err(map_err)?;
+        .map_err(|e| {
+            tracing::warn!(
+                src_bucket = %src_bucket,
+                source_key = %source_key,
+                dest_bucket = %dest_bucket,
+                dest_key = %dest_key,
+                error = %crate::error::format_error_chain(&e),
+                "S3 GetObject failed during stream copy"
+            );
+            map_err(e)
+        })?;
 
     let total = out.content_length().unwrap_or(0).max(0) as u64;
     emit_progress(

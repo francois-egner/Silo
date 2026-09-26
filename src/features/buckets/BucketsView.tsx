@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, FolderOpen, Plus, Settings, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Settings, Trash2 } from "lucide-react";
 import { api, formatDate } from "../../lib/tauri";
+import { BucketIcon } from "../../shared/BucketIcon";
 import { filterVisibleBuckets } from "../../shared/buckets";
 import { useUiStore } from "../../shared/store";
 import {
@@ -144,7 +145,7 @@ export function BucketsView({
               className="flex min-w-0 flex-1 items-center gap-2 text-left"
               onClick={() => onOpenBucket(b.name)}
             >
-              <FolderOpen className="shrink-0 text-muted" size={15} />
+              <BucketIcon className="shrink-0 text-muted" size={15} />
               <div className="min-w-0">
                 <div className="truncate text-[13px] font-medium text-fg">
                   {b.name}

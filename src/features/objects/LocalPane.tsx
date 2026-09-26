@@ -37,7 +37,7 @@ export function LocalPane({
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
-    entry: LocalEntry;
+    entry: LocalEntry | null;
   } | null>(null);
   const [stat, setStat] = useState<LocalStat | null>(null);
   const [statLoading, setStatLoading] = useState(false);
@@ -53,7 +53,7 @@ export function LocalPane({
   }, [localPath]);
 
   useEffect(() => {
-    if (!menu) {
+    if (!menu?.entry) {
       setStat(null);
       return;
     }
@@ -135,14 +135,20 @@ export function LocalPane({
     setMenu({ x: e.clientX, y: e.clientY, entry });
   }
 
-  const menuPaths = menu
-    ? selected.has(menu.entry.path)
+  function openBackgroundMenu(e: React.MouseEvent) {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, entry: null });
+  }
+
+  const menuPaths =
+    menu?.entry && selected.has(menu.entry.path)
       ? [...selected]
-      : [menu.entry.path]
-    : [];
+      : menu?.entry
+        ? [menu.entry.path]
+        : [];
 
   const infoRows = (() => {
-    if (!menu) return [];
+    if (!menu?.entry) return [];
     const e = menu.entry;
     const rows: { label: string; value: string }[] = [
       { label: "Name", value: e.name },
@@ -170,7 +176,18 @@ export function LocalPane({
     return rows;
   })();
 
-  const menuItems: ContextMenuItem[] = menu
+  const backgroundMenuItems: ContextMenuItem[] = [
+    {
+      kind: "action",
+      id: "refresh",
+      label: "Refresh folder",
+      onSelect: () => {
+        void listing.refetch();
+      },
+    },
+  ];
+
+  const rowMenuItems: ContextMenuItem[] = menu?.entry
     ? [
         ...(menu.entry.isDir
           ? [
@@ -178,7 +195,7 @@ export function LocalPane({
                 kind: "action" as const,
                 id: "open",
                 label: "Open",
-                onSelect: () => setLocalPath(menu.entry.path),
+                onSelect: () => setLocalPath(menu.entry!.path),
               },
             ]
           : []),
@@ -200,7 +217,7 @@ export function LocalPane({
           label: "Copy path",
           onSelect: async () => {
             try {
-              await navigator.clipboard.writeText(menu.entry.path);
+              await navigator.clipboard.writeText(menu.entry!.path);
               showToast("Path copied", "ok");
             } catch (err) {
               showToast(String(err), "err");
@@ -219,13 +236,14 @@ export function LocalPane({
       ]
     : [];
 
+  const menuItems = menu?.entry ? rowMenuItems : menu ? backgroundMenuItems : [];
+
   return (
     <div
       className="relative flex h-full min-w-0 flex-col"
       onContextMenu={(e) => {
-        // Prevent native OS menu on empty pane chrome
         if ((e.target as HTMLElement).closest("tr")) return;
-        e.preventDefault();
+        openBackgroundMenu(e);
       }}
     >
       {dropActive && (
@@ -234,17 +252,17 @@ export function LocalPane({
           className="pointer-events-none absolute inset-0 z-30 rounded-sm bg-selected-muted shadow-[inset_0_0_0_2px_var(--accent)]"
         />
       )}
-      <nav className="relative z-0 flex h-8 shrink-0 items-center gap-1 overflow-hidden border-b border-line bg-panel px-2 text-[12px]">
-        <span className="mr-1 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted">
+      <nav className="relative z-0 flex h-10 shrink-0 items-center gap-1.5 overflow-hidden border-b border-line bg-panel px-2.5 text-[13px]">
+        <span className="mr-1 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted">
           Local
         </span>
         <button
           type="button"
-          className="shrink-0 rounded p-1 text-muted hover:bg-hover hover:text-fg"
+          className="shrink-0 rounded p-1.5 text-muted hover:bg-hover hover:text-fg"
           title="Home"
           onClick={() => void api.getHomeDir().then(setLocalPath)}
         >
-          <Home size={14} />
+          <Home size={16} />
         </button>
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
           {crumbs.map((c, i) => {
@@ -258,10 +276,10 @@ export function LocalPane({
                 <button
                   type="button"
                   title={c.label}
-                  className={`rounded px-1.5 py-0.5 hover:bg-hover ${
+                  className={`rounded px-2 py-1 hover:bg-hover ${
                     isLast
                       ? "min-w-0 truncate font-medium text-fg"
-                      : "max-w-[9rem] truncate text-muted"
+                      : "max-w-[10rem] truncate text-muted"
                   }`}
                   onClick={() => setLocalPath(c.path)}
                 >
@@ -284,127 +302,140 @@ export function LocalPane({
             {String(listing.error)}
           </div>
         )}
-        {listing.data && listing.data.length === 0 && (
-          <div className="py-16 text-center text-[13px] text-muted">
-            This folder is empty.
-          </div>
-        )}
 
-        <table className="w-full text-[13px]">
-          <thead className="sticky top-0 z-10 bg-toolbar text-left text-[11px] uppercase tracking-wide text-muted">
-            <tr>
-              <th className="w-9 px-2 py-1.5">
-                <input
-                  type="checkbox"
-                  className="accent-accent"
-                  checked={
-                    !!listing.data?.length &&
-                    listing.data.every((e) => selected.has(e.path))
-                  }
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelected(
-                        new Set(listing.data?.map((x) => x.path) ?? []),
-                      );
-                    } else setSelected(new Set());
-                  }}
-                />
-              </th>
-              <SortHeader
-                label="Name"
-                column="name"
-                sort={sort}
-                onSort={(key) => setSort((s) => toggleSort(s, key))}
-                className="px-2 py-1.5"
-              />
-              <SortHeader
-                label="Size"
-                column="size"
-                sort={sort}
-                onSort={(key) => setSort((s) => toggleSort(s, key))}
-                className="w-24 px-2 py-1.5"
-              />
-              {!compact && (
+        {localPath && !listing.isLoading && !listing.isError && (
+          <table className="w-full text-[13px]">
+            <thead className="sticky top-0 z-10 bg-toolbar text-left text-[11px] uppercase tracking-wide text-muted">
+              <tr>
+                <th className="w-9 px-2 py-1.5">
+                  <input
+                    type="checkbox"
+                    className="accent-accent"
+                    checked={
+                      !!listing.data?.length &&
+                      listing.data.every((e) => selected.has(e.path))
+                    }
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelected(
+                          new Set(listing.data?.map((x) => x.path) ?? []),
+                        );
+                      } else setSelected(new Set());
+                    }}
+                  />
+                </th>
                 <SortHeader
-                  label="Modified"
-                  column="modified"
+                  label="Name"
+                  column="name"
                   sort={sort}
                   onSort={(key) => setSort((s) => toggleSort(s, key))}
-                  className="w-40 px-2 py-1.5"
+                  className="px-2 py-1.5"
                 />
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {sortedEntries.map((entry) => {
-              const isSelected = selected.has(entry.path);
-              return (
+                <SortHeader
+                  label="Size"
+                  column="size"
+                  sort={sort}
+                  onSort={(key) => setSort((s) => toggleSort(s, key))}
+                  className="w-24 px-2 py-1.5"
+                />
+                {!compact && (
+                  <SortHeader
+                    label="Modified"
+                    column="modified"
+                    sort={sort}
+                    onSort={(key) => setSort((s) => toggleSort(s, key))}
+                    className="w-40 px-2 py-1.5"
+                  />
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {listing.data && listing.data.length === 0 ? (
                 <tr
-                  key={entry.path}
-                  className={`cursor-grab active:cursor-grabbing hover:bg-hover ${
-                    isSelected ? "bg-selected-muted" : ""
-                  }`}
-                  onDoubleClick={() => {
-                    if (entry.isDir) setLocalPath(entry.path);
+                  onContextMenu={(e) => {
+                    e.stopPropagation();
+                    openBackgroundMenu(e);
                   }}
-                  onContextMenu={(e) => openMenu(e, entry)}
-                  onPointerDown={(e) => {
-                    if (e.button !== 0) return;
-                    const t = e.target as HTMLElement;
-                    if (t.closest("input")) return;
-                    pointerOrigin.current = { x: e.clientX, y: e.clientY };
-                    didDrag.current = false;
-                    const paths = selected.has(entry.path)
-                      ? [...selected]
-                      : [entry.path];
-                    const label =
-                      paths.length === 1
-                        ? entry.name
-                        : `${paths.length} items`;
-                    onRowPointerDown?.(e, paths, label);
-                  }}
-                  onPointerMove={(e) => {
-                    if (!pointerOrigin.current || didDrag.current) return;
-                    const dx = e.clientX - pointerOrigin.current.x;
-                    const dy = e.clientY - pointerOrigin.current.y;
-                    if (Math.hypot(dx, dy) >= 6) didDrag.current = true;
-                  }}
-                  onClick={() => onOpen(entry)}
                 >
-                  <td className="px-2 py-1">
-                    <input
-                      type="checkbox"
-                      className="accent-accent"
-                      checked={isSelected}
-                      onChange={() => toggle(entry.path)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
+                  <td
+                    colSpan={compact ? 3 : 4}
+                    className="py-16 text-center text-[13px] text-muted"
+                  >
+                    This folder is empty.
                   </td>
-                  <td className="px-2 py-1">
-                    <div className="flex max-w-md items-center gap-2 text-left">
-                      {entry.isDir ? (
-                        <Folder size={14} className="shrink-0 text-muted" />
-                      ) : (
-                        <File size={14} className="shrink-0 text-muted" />
-                      )}
-                      <span className="truncate font-medium text-fg">
-                        {entry.name}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="whitespace-nowrap px-2 py-1 font-mono text-muted">
-                    {entry.isDir ? "—" : formatBytes(entry.size)}
-                  </td>
-                  {!compact && (
-                    <td className="whitespace-nowrap px-2 py-1 text-muted">
-                      {formatDate(entry.modified)}
-                    </td>
-                  )}
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ) : (
+                sortedEntries.map((entry) => {
+                  const isSelected = selected.has(entry.path);
+                  return (
+                    <tr
+                      key={entry.path}
+                      className={`cursor-grab active:cursor-grabbing hover:bg-hover ${
+                        isSelected ? "bg-selected-muted" : ""
+                      }`}
+                      onDoubleClick={() => {
+                        if (entry.isDir) setLocalPath(entry.path);
+                      }}
+                      onContextMenu={(e) => openMenu(e, entry)}
+                      onPointerDown={(e) => {
+                        if (e.button !== 0) return;
+                        const t = e.target as HTMLElement;
+                        if (t.closest("input")) return;
+                        pointerOrigin.current = { x: e.clientX, y: e.clientY };
+                        didDrag.current = false;
+                        const paths = selected.has(entry.path)
+                          ? [...selected]
+                          : [entry.path];
+                        const label =
+                          paths.length === 1
+                            ? entry.name
+                            : `${paths.length} items`;
+                        onRowPointerDown?.(e, paths, label);
+                      }}
+                      onPointerMove={(e) => {
+                        if (!pointerOrigin.current || didDrag.current) return;
+                        const dx = e.clientX - pointerOrigin.current.x;
+                        const dy = e.clientY - pointerOrigin.current.y;
+                        if (Math.hypot(dx, dy) >= 6) didDrag.current = true;
+                      }}
+                      onClick={() => onOpen(entry)}
+                    >
+                      <td className="px-2 py-1">
+                        <input
+                          type="checkbox"
+                          className="accent-accent"
+                          checked={isSelected}
+                          onChange={() => toggle(entry.path)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <div className="flex max-w-md items-center gap-2 text-left">
+                          {entry.isDir ? (
+                            <Folder size={14} className="shrink-0 text-muted" />
+                          ) : (
+                            <File size={14} className="shrink-0 text-muted" />
+                          )}
+                          <span className="truncate font-medium text-fg">
+                            {entry.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1 font-mono text-muted">
+                        {entry.isDir ? "—" : formatBytes(entry.size)}
+                      </td>
+                      {!compact && (
+                        <td className="whitespace-nowrap px-2 py-1 text-muted">
+                          {formatDate(entry.modified)}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <ContextMenu
@@ -413,16 +444,18 @@ export function LocalPane({
         y={menu?.y ?? 0}
         onClose={() => setMenu(null)}
         header={
-          <div className="flex items-center gap-2 truncate">
-            {menu?.entry.isDir ? (
-              <Folder size={14} className="shrink-0 text-muted" />
-            ) : (
-              <File size={14} className="shrink-0 text-muted" />
-            )}
-            <span className="truncate">{menu?.entry.name}</span>
-          </div>
+          menu?.entry ? (
+            <div className="flex items-center gap-2 truncate">
+              {menu.entry.isDir ? (
+                <Folder size={14} className="shrink-0 text-muted" />
+              ) : (
+                <File size={14} className="shrink-0 text-muted" />
+              )}
+              <span className="truncate">{menu.entry.name}</span>
+            </div>
+          ) : undefined
         }
-        info={infoRows}
+        info={menu?.entry ? infoRows : undefined}
         items={menuItems}
       />
     </div>

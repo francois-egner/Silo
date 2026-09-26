@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { File, Folder } from "lucide-react";
+import { ArrowLeft, File, Folder } from "lucide-react";
+import { BucketIcon } from "../../shared/BucketIcon";
 import { api, formatBytes, formatDate } from "../../lib/tauri";
 import type { ObjectEntry } from "../../shared/types";
 import { useUiStore } from "../../shared/store";
@@ -23,13 +24,22 @@ export type LocalDragPayload = {
   paths: string[];
 };
 
+export type S3CopySource = {
+  accountId: string;
+  bucket: string;
+  prefix: string;
+};
+
 export type S3ContextActions = {
   onDownload?: (entries: ObjectEntry[]) => void;
   onDelete?: (keys: string[]) => void;
   onPresign?: (key: string) => void;
   onRename?: (key: string) => void;
-  onCopyTo?: (entries: ObjectEntry[]) => void;
-  onMoveTo?: (entries: ObjectEntry[]) => void;
+  onCopyTo?: (entries: ObjectEntry[], source: S3CopySource) => void;
+  onMoveTo?: (entries: ObjectEntry[], source: S3CopySource) => void;
+  onNewFolder?: () => void;
+  onUpload?: () => void;
+  onRefresh?: () => void;
 };
 
 async function folderStats(
@@ -102,7 +112,7 @@ export function S3Pane({
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
-    entry: ObjectEntry;
+    entry: ObjectEntry | null;
   } | null>(null);
   const [folderInfo, setFolderInfo] = useState<{
     size: number;
@@ -113,7 +123,7 @@ export function S3Pane({
   const [sort, setSort] = useState<SortState>({ key: "name", dir: "asc" });
 
   useEffect(() => {
-    if (!menu?.entry.isFolder || !accountId) {
+    if (!menu?.entry?.isFolder || !accountId) {
       setFolderInfo(null);
       return;
     }
@@ -147,6 +157,13 @@ export function S3Pane({
     return items;
   }, [bucket, prefix]);
 
+  const parentPrefix = useMemo(() => {
+    const parts = prefix.split("/").filter(Boolean);
+    if (!parts.length) return null;
+    parts.pop();
+    return parts.length ? `${parts.join("/")}/` : "";
+  }, [prefix]);
+
   const sortedEntries = useMemo(
     () =>
       sortEntries(entries, sort, {
@@ -167,14 +184,20 @@ export function S3Pane({
     setMenu({ x: e.clientX, y: e.clientY, entry });
   }
 
-  const menuEntries = menu
-    ? selected.has(menu.entry.key)
+  function openBackgroundMenu(e: React.MouseEvent) {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, entry: null });
+  }
+
+  const menuEntries =
+    menu?.entry && selected.has(menu.entry.key)
       ? sortedEntries.filter((e) => selected.has(e.key))
-      : [menu.entry]
-    : [];
+      : menu?.entry
+        ? [menu.entry]
+        : [];
 
   const infoRows = (() => {
-    if (!menu) return [];
+    if (!menu?.entry) return [];
     const e = menu.entry;
     const rows: { label: string; value: string }[] = [
       { label: "Name", value: e.name },
@@ -209,7 +232,32 @@ export function S3Pane({
     return rows;
   })();
 
-  const menuItems: ContextMenuItem[] = menu
+  const backgroundMenuItems: ContextMenuItem[] = [
+    {
+      kind: "action",
+      id: "new-folder",
+      label: "New folder",
+      disabled: !contextActions?.onNewFolder,
+      onSelect: () => contextActions?.onNewFolder?.(),
+    },
+    {
+      kind: "action",
+      id: "upload",
+      label: "Upload file",
+      disabled: !contextActions?.onUpload,
+      onSelect: () => contextActions?.onUpload?.(),
+    },
+    { kind: "sep" },
+    {
+      kind: "action",
+      id: "refresh",
+      label: "Refresh",
+      disabled: !contextActions?.onRefresh,
+      onSelect: () => contextActions?.onRefresh?.(),
+    },
+  ];
+
+  const rowMenuItems: ContextMenuItem[] = menu?.entry
     ? [
         ...(menu.entry.isFolder
           ? [
@@ -217,7 +265,7 @@ export function S3Pane({
                 kind: "action" as const,
                 id: "open",
                 label: "Open",
-                onSelect: () => onOpenEntry(menu.entry),
+                onSelect: () => onOpenEntry(menu.entry!),
               },
             ]
           : []),
@@ -239,7 +287,7 @@ export function S3Pane({
           label: "Copy key",
           onSelect: async () => {
             try {
-              await navigator.clipboard.writeText(menu.entry.key);
+              await navigator.clipboard.writeText(menu.entry!.key);
               showToast("Key copied", "ok");
             } catch (err) {
               showToast(String(err), "err");
@@ -253,8 +301,15 @@ export function S3Pane({
             menuEntries.length > 1
               ? `Copy ${menuEntries.length} to…`
               : "Copy to…",
-          disabled: !contextActions?.onCopyTo,
-          onSelect: () => contextActions?.onCopyTo?.(menuEntries),
+          disabled: !contextActions?.onCopyTo || !accountId,
+          onSelect: () => {
+            if (!accountId) return;
+            contextActions?.onCopyTo?.(menuEntries, {
+              accountId,
+              bucket,
+              prefix,
+            });
+          },
         },
         {
           kind: "action",
@@ -263,8 +318,15 @@ export function S3Pane({
             menuEntries.length > 1
               ? `Move ${menuEntries.length} to…`
               : "Move to…",
-          disabled: !contextActions?.onMoveTo,
-          onSelect: () => contextActions?.onMoveTo?.(menuEntries),
+          disabled: !contextActions?.onMoveTo || !accountId,
+          onSelect: () => {
+            if (!accountId) return;
+            contextActions?.onMoveTo?.(menuEntries, {
+              accountId,
+              bucket,
+              prefix,
+            });
+          },
         },
         ...(!menu.entry.isFolder
           ? [
@@ -273,14 +335,14 @@ export function S3Pane({
                 id: "presign",
                 label: "Copy presigned URL",
                 disabled: !contextActions?.onPresign,
-                onSelect: () => contextActions?.onPresign?.(menu.entry.key),
+                onSelect: () => contextActions?.onPresign?.(menu.entry!.key),
               },
               {
                 kind: "action" as const,
                 id: "rename",
                 label: "Rename / move…",
                 disabled: !contextActions?.onRename || menuEntries.length !== 1,
-                onSelect: () => contextActions?.onRename?.(menu.entry.key),
+                onSelect: () => contextActions?.onRename?.(menu.entry!.key),
               },
             ]
           : []),
@@ -300,12 +362,14 @@ export function S3Pane({
       ]
     : [];
 
+  const menuItems = menu?.entry ? rowMenuItems : menu ? backgroundMenuItems : [];
+
   return (
     <div
       className="relative flex h-full min-w-0 flex-col"
       onContextMenu={(e) => {
         if ((e.target as HTMLElement).closest("tr")) return;
-        e.preventDefault();
+        openBackgroundMenu(e);
       }}
     >
       {dropActive && (
@@ -314,10 +378,18 @@ export function S3Pane({
           className="pointer-events-none absolute inset-0 z-30 rounded-sm bg-selected-muted shadow-[inset_0_0_0_2px_var(--accent)]"
         />
       )}
-      <nav className="relative z-0 flex h-8 shrink-0 items-center gap-1 overflow-hidden border-b border-line bg-panel px-2 text-[12px]">
-        <span className="mr-1 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted">
-          S3
-        </span>
+      <nav className="relative z-0 flex h-10 shrink-0 items-center gap-1.5 overflow-hidden border-b border-line bg-panel px-2.5 text-[13px]">
+        <button
+          type="button"
+          className="mr-0.5 shrink-0 rounded p-1.5 text-muted hover:bg-hover hover:text-fg disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-muted"
+          title={parentPrefix === null ? "At bucket root" : "Go up"}
+          disabled={parentPrefix === null}
+          onClick={() => {
+            if (parentPrefix !== null) onPrefixChange(parentPrefix);
+          }}
+        >
+          <ArrowLeft size={16} />
+        </button>
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
           {crumbs.map((c, i) => {
             const isLast = i === crumbs.length - 1;
@@ -330,14 +402,17 @@ export function S3Pane({
                 <button
                   type="button"
                   title={c.label}
-                  className={`rounded px-1.5 py-0.5 hover:bg-hover ${
+                  className={`inline-flex max-w-full items-center gap-1.5 rounded px-2 py-1 hover:bg-hover ${
                     isLast
-                      ? "min-w-0 truncate font-medium text-fg"
-                      : "max-w-[9rem] truncate text-muted"
+                      ? "min-w-0 font-medium text-fg"
+                      : "max-w-[10rem] text-muted"
                   }`}
                   onClick={() => onPrefixChange(c.prefix)}
                 >
-                  {c.label}
+                  {i === 0 && (
+                    <BucketIcon size={14} className="shrink-0 opacity-80" />
+                  )}
+                  <span className="truncate">{c.label}</span>
                 </button>
               </span>
             );
@@ -356,106 +431,120 @@ export function S3Pane({
             {String(error)}
           </div>
         )}
-        {!loading && !error && entries.length === 0 && (
-          <div className="py-16 text-center text-[13px] text-muted">
-            This folder is empty. Drop files here or use Upload.
-          </div>
-        )}
 
-        <table className="w-full text-[13px]">
-          <thead className="sticky top-0 z-10 bg-toolbar text-left text-[11px] uppercase tracking-wide text-muted">
-            <tr>
-              <th className="w-9 px-2 py-1.5">
-                <input
-                  type="checkbox"
-                  className="accent-accent"
-                  checked={
-                    !!entries.length && entries.every((e) => selected.has(e.key))
-                  }
-                  onChange={(e) => {
-                    if (e.target.checked) onSelectAll();
-                    else onClearSelection();
-                  }}
-                />
-              </th>
-              <SortHeader
-                label="Name"
-                column="name"
-                sort={sort}
-                onSort={(key) => setSort((s) => toggleSort(s, key))}
-                className="px-2 py-1.5"
-              />
-              <SortHeader
-                label="Size"
-                column="size"
-                sort={sort}
-                onSort={(key) => setSort((s) => toggleSort(s, key))}
-                className="w-24 px-2 py-1.5"
-              />
-              {!compact && (
+        {!loading && !error && (
+          <table className="w-full text-[13px]">
+            <thead className="sticky top-0 z-10 bg-toolbar text-left text-[11px] uppercase tracking-wide text-muted">
+              <tr>
+                <th className="w-9 px-2 py-1.5">
+                  <input
+                    type="checkbox"
+                    className="accent-accent"
+                    checked={
+                      !!entries.length &&
+                      entries.every((e) => selected.has(e.key))
+                    }
+                    onChange={(e) => {
+                      if (e.target.checked) onSelectAll();
+                      else onClearSelection();
+                    }}
+                  />
+                </th>
                 <SortHeader
-                  label="Modified"
-                  column="modified"
+                  label="Name"
+                  column="name"
                   sort={sort}
                   onSort={(key) => setSort((s) => toggleSort(s, key))}
-                  className="w-40 px-2 py-1.5"
+                  className="px-2 py-1.5"
                 />
-              )}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {sortedEntries.map((entry) => {
-              const isSelected = selected.has(entry.key);
-              return (
+                <SortHeader
+                  label="Size"
+                  column="size"
+                  sort={sort}
+                  onSort={(key) => setSort((s) => toggleSort(s, key))}
+                  className="w-24 px-2 py-1.5"
+                />
+                {!compact && (
+                  <SortHeader
+                    label="Modified"
+                    column="modified"
+                    sort={sort}
+                    onSort={(key) => setSort((s) => toggleSort(s, key))}
+                    className="w-40 px-2 py-1.5"
+                  />
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {entries.length === 0 ? (
                 <tr
-                  key={entry.key}
-                  className={`cursor-grab active:cursor-grabbing hover:bg-hover ${
-                    isSelected ? "bg-selected-muted" : ""
-                  }`}
-                  onDoubleClick={() => onOpenEntry(entry)}
-                  onContextMenu={(e) => openMenu(e, entry)}
-                  onPointerDown={(e) => {
-                    if (e.button !== 0) return;
-                    const t = e.target as HTMLElement;
-                    if (t.closest("input")) return;
-                    onRowPointerDown?.(e, entry);
+                  onContextMenu={(e) => {
+                    e.stopPropagation();
+                    openBackgroundMenu(e);
                   }}
-                  onClick={() => onOpenEntry(entry)}
                 >
-                  <td className="px-2 py-1">
-                    <input
-                      type="checkbox"
-                      className="accent-accent"
-                      checked={isSelected}
-                      onChange={() => onToggle(entry.key)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
+                  <td
+                    colSpan={compact ? 3 : 4}
+                    className="py-16 text-center text-[13px] text-muted"
+                  >
+                    This folder is empty. Drop files here or use Upload.
                   </td>
-                  <td className="px-2 py-1">
-                    <div className="flex max-w-md items-center gap-2 text-left">
-                      {entry.isFolder ? (
-                        <Folder size={14} className="shrink-0 text-muted" />
-                      ) : (
-                        <File size={14} className="shrink-0 text-muted" />
-                      )}
-                      <span className="truncate font-medium text-fg">
-                        {entry.name}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="whitespace-nowrap px-2 py-1 font-mono text-muted">
-                    {entry.isFolder ? "—" : formatBytes(entry.size)}
-                  </td>
-                  {!compact && (
-                    <td className="whitespace-nowrap px-2 py-1 text-muted">
-                      {formatDate(entry.lastModified)}
-                    </td>
-                  )}
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ) : (
+                sortedEntries.map((entry) => {
+                  const isSelected = selected.has(entry.key);
+                  return (
+                    <tr
+                      key={entry.key}
+                      className={`cursor-grab active:cursor-grabbing hover:bg-hover ${
+                        isSelected ? "bg-selected-muted" : ""
+                      }`}
+                      onDoubleClick={() => onOpenEntry(entry)}
+                      onContextMenu={(e) => openMenu(e, entry)}
+                      onPointerDown={(e) => {
+                        if (e.button !== 0) return;
+                        const t = e.target as HTMLElement;
+                        if (t.closest("input")) return;
+                        onRowPointerDown?.(e, entry);
+                      }}
+                      onClick={() => onOpenEntry(entry)}
+                    >
+                      <td className="px-2 py-1">
+                        <input
+                          type="checkbox"
+                          className="accent-accent"
+                          checked={isSelected}
+                          onChange={() => onToggle(entry.key)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <div className="flex max-w-md items-center gap-2 text-left">
+                          {entry.isFolder ? (
+                            <Folder size={14} className="shrink-0 text-muted" />
+                          ) : (
+                            <File size={14} className="shrink-0 text-muted" />
+                          )}
+                          <span className="truncate font-medium text-fg">
+                            {entry.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1 font-mono text-muted">
+                        {entry.isFolder ? "—" : formatBytes(entry.size)}
+                      </td>
+                      {!compact && (
+                        <td className="whitespace-nowrap px-2 py-1 text-muted">
+                          {formatDate(entry.lastModified)}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <ContextMenu
@@ -464,16 +553,18 @@ export function S3Pane({
         y={menu?.y ?? 0}
         onClose={() => setMenu(null)}
         header={
-          <div className="flex items-center gap-2 truncate">
-            {menu?.entry.isFolder ? (
-              <Folder size={14} className="shrink-0 text-muted" />
-            ) : (
-              <File size={14} className="shrink-0 text-muted" />
-            )}
-            <span className="truncate">{menu?.entry.name}</span>
-          </div>
+          menu?.entry ? (
+            <div className="flex items-center gap-2 truncate">
+              {menu.entry.isFolder ? (
+                <Folder size={14} className="shrink-0 text-muted" />
+              ) : (
+                <File size={14} className="shrink-0 text-muted" />
+              )}
+              <span className="truncate">{menu.entry.name}</span>
+            </div>
+          ) : undefined
         }
-        info={infoRows}
+        info={menu?.entry ? infoRows : undefined}
         items={menuItems}
       />
     </div>

@@ -6,9 +6,9 @@ import {
   Folder,
   HardDrive,
   Loader2,
-  Package,
 } from "lucide-react";
 import { api } from "../lib/tauri";
+import { BucketIcon } from "../shared/BucketIcon";
 import type { Account, BucketSettingsTab } from "../shared/types";
 import { filterVisibleBuckets } from "../shared/buckets";
 import { useUiStore } from "../shared/store";
@@ -275,7 +275,7 @@ function BucketBranch({
           }
           onDoubleClick={() => toggle(id)}
         >
-          <Package size={13} className="shrink-0" />
+          <BucketIcon size={13} className="shrink-0" />
           <span className="truncate">{bucket}</span>
         </button>
       </div>
@@ -300,7 +300,7 @@ function BucketBranch({
         onClose={() => setMenu(null)}
         header={
           <div className="flex items-center gap-2 truncate">
-            <Package size={14} className="shrink-0" />
+            <BucketIcon size={14} className="shrink-0" />
             <span className="truncate">{bucket}</span>
           </div>
         }

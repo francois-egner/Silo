@@ -10,6 +10,9 @@ interface UiState {
   commandOpen: boolean;
   viewMode: BrowserViewMode;
   localPath: string | null;
+  s3s3SourceAccountId: string | null;
+  s3s3SourceBucket: string | null;
+  s3s3SourcePrefix: string;
   s3s3DestAccountId: string | null;
   s3s3DestBucket: string | null;
   s3s3DestPrefix: string;
@@ -25,6 +28,11 @@ interface UiState {
   setCommandOpen: (open: boolean) => void;
   setViewMode: (mode: BrowserViewMode) => void;
   setLocalPath: (path: string | null) => void;
+  setS3s3Source: (opts: {
+    accountId?: string | null;
+    bucket?: string | null;
+    prefix?: string;
+  }) => void;
   setS3s3Dest: (opts: {
     accountId?: string | null;
     bucket?: string | null;
@@ -41,6 +49,9 @@ export const useUiStore = create<UiState>((set) => ({
   commandOpen: false,
   viewMode: "single",
   localPath: null,
+  s3s3SourceAccountId: null,
+  s3s3SourceBucket: null,
+  s3s3SourcePrefix: "",
   s3s3DestAccountId: null,
   s3s3DestBucket: null,
   s3s3DestPrefix: "",
@@ -74,6 +85,13 @@ export const useUiStore = create<UiState>((set) => ({
   setCommandOpen: (open) => set({ commandOpen: open }),
   setViewMode: (mode) => set({ viewMode: mode }),
   setLocalPath: (path) => set({ localPath: path }),
+  setS3s3Source: ({ accountId, bucket, prefix }) =>
+    set((s) => ({
+      s3s3SourceAccountId:
+        accountId !== undefined ? accountId : s.s3s3SourceAccountId,
+      s3s3SourceBucket: bucket !== undefined ? bucket : s.s3s3SourceBucket,
+      s3s3SourcePrefix: prefix !== undefined ? prefix : s.s3s3SourcePrefix,
+    })),
   setS3s3Dest: ({ accountId, bucket, prefix }) =>
     set((s) => ({
       s3s3DestAccountId:

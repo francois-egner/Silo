@@ -1,49 +1,92 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { open } from "@tauri-apps/plugin-dialog";
+import { Copy } from "lucide-react";
 import { api } from "../../lib/tauri";
 import { filterVisibleBuckets } from "../../shared/buckets";
 import type { ObjectEntry } from "../../shared/types";
 import { useUiStore } from "../../shared/store";
-import { Select, Spinner } from "../../shared/ui";
+import { Button, Field, Input, Modal, Select, Spinner } from "../../shared/ui";
 import { buildCopyItems } from "./CopyToModal";
-import { S3Pane, type S3DragPayload } from "./S3Pane";
+import { S3Pane, type S3DragPayload, type S3ContextActions } from "./S3Pane";
 import { getInAppDrag, setInAppDrag, type InAppDrag } from "./dnd";
+
+function fileName(path: string) {
+  return path.split(/[/\\]/).pop() ?? path;
+}
+
+function PaneLocationBar({
+  label,
+  accountId,
+  bucket,
+  accounts,
+  buckets,
+  bucketsLoading,
+  onAccountChange,
+  onBucketChange,
+}: {
+  label: string;
+  accountId: string;
+  bucket: string;
+  accounts: { id: string; name: string }[];
+  buckets: { name: string }[];
+  bucketsLoading: boolean;
+  onAccountChange: (accountId: string) => void;
+  onBucketChange: (bucket: string) => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-2 border-b border-line bg-toolbar px-3 py-2">
+      <span className="shrink-0 text-[11px] uppercase tracking-wide text-muted">
+        {label}
+      </span>
+      <Select
+        className="max-w-[160px] py-1 text-xs"
+        value={accountId}
+        onChange={(e) => onAccountChange(e.target.value)}
+      >
+        {accounts.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.name}
+          </option>
+        ))}
+      </Select>
+      <Select
+        className="min-w-0 flex-1 py-1 text-xs"
+        value={bucket}
+        onChange={(e) => onBucketChange(e.target.value)}
+        disabled={!buckets.length}
+      >
+        {buckets.map((b) => (
+          <option key={b.name} value={b.name}>
+            {b.name}
+          </option>
+        ))}
+      </Select>
+      {bucketsLoading && <Spinner className="h-3.5 w-3.5 shrink-0 text-muted" />}
+    </div>
+  );
+}
 
 export function S3SplitTransferView({
   accountId,
   bucket,
-  prefix,
-  onPrefixChange,
-  entries,
-  loading,
-  error,
-  selected,
-  onToggle,
-  onSelectAll,
-  onClearSelection,
-  onOpenEntry,
-  onSelectOnly,
   contextActions,
   onCopied,
 }: {
+  /** Open browser location — used to seed source/dest when unset. */
   accountId: string;
   bucket: string;
-  prefix: string;
-  onPrefixChange: (prefix: string) => void;
-  entries: ObjectEntry[];
-  loading: boolean;
-  error: Error | null;
-  selected: Set<string>;
-  onToggle: (key: string) => void;
-  onSelectAll: () => void;
-  onClearSelection: () => void;
-  onOpenEntry: (entry: ObjectEntry) => void;
-  onSelectOnly?: (key: string) => void;
-  contextActions?: import("./S3Pane").S3ContextActions;
+  contextActions?: S3ContextActions;
   onCopied?: () => void;
 }) {
   const showToast = useUiStore((s) => s.showToast);
   const qc = useQueryClient();
+
+  const sourceAccountId = useUiStore((s) => s.s3s3SourceAccountId);
+  const sourceBucket = useUiStore((s) => s.s3s3SourceBucket);
+  const sourcePrefix = useUiStore((s) => s.s3s3SourcePrefix);
+  const setS3s3Source = useUiStore((s) => s.setS3s3Source);
+
   const destAccountId = useUiStore((s) => s.s3s3DestAccountId);
   const destBucket = useUiStore((s) => s.s3s3DestBucket);
   const destPrefix = useUiStore((s) => s.s3s3DestPrefix);
@@ -52,7 +95,12 @@ export function S3SplitTransferView({
   const [drag, setDrag] = useState<InAppDrag | null>(null);
   const [dropTarget, setDropTarget] = useState<"left" | "right" | null>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
+  const [leftSelected, setLeftSelected] = useState<Set<string>>(new Set());
   const [rightSelected, setRightSelected] = useState<Set<string>>(new Set());
+  const [folderOpen, setFolderOpen] = useState(false);
+  const [folderName, setFolderName] = useState("");
+  const [folderTarget, setFolderTarget] = useState<"left" | "right">("left");
+  const [folderPending, setFolderPending] = useState(false);
   const dragRef = useRef<InAppDrag | null>(null);
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
@@ -62,13 +110,28 @@ export function S3SplitTransferView({
   const accounts = useQuery({ queryKey: ["accounts"], queryFn: api.listAccounts });
 
   useEffect(() => {
+    if (!sourceAccountId) {
+      setS3s3Source({ accountId, bucket, prefix: "" });
+    }
+  }, [accountId, bucket, sourceAccountId, setS3s3Source]);
+
+  useEffect(() => {
     if (!destAccountId) {
       setS3s3Dest({ accountId, bucket, prefix: "" });
     }
   }, [accountId, bucket, destAccountId, setS3s3Dest]);
 
+  const effectiveSourceAccount = sourceAccountId ?? accountId;
   const effectiveDestAccount = destAccountId ?? accountId;
+
+  const sourceAccount = accounts.data?.find((a) => a.id === effectiveSourceAccount);
   const destAccount = accounts.data?.find((a) => a.id === effectiveDestAccount);
+
+  const sourceBuckets = useQuery({
+    queryKey: ["buckets", effectiveSourceAccount],
+    queryFn: () => api.listBuckets(effectiveSourceAccount),
+    enabled: !!effectiveSourceAccount,
+  });
 
   const destBuckets = useQuery({
     queryKey: ["buckets", effectiveDestAccount],
@@ -76,10 +139,20 @@ export function S3SplitTransferView({
     enabled: !!effectiveDestAccount,
   });
 
+  const visibleSourceBuckets = useMemo(
+    () => filterVisibleBuckets(sourceAccount, sourceBuckets.data ?? []),
+    [sourceAccount, sourceBuckets.data],
+  );
+
   const visibleDestBuckets = useMemo(
     () => filterVisibleBuckets(destAccount, destBuckets.data ?? []),
     [destAccount, destBuckets.data],
   );
+
+  const effectiveSourceBucket =
+    sourceBucket && visibleSourceBuckets.some((b) => b.name === sourceBucket)
+      ? sourceBucket
+      : (visibleSourceBuckets[0]?.name ?? bucket);
 
   const effectiveDestBucket =
     destBucket && visibleDestBuckets.some((b) => b.name === destBucket)
@@ -87,10 +160,32 @@ export function S3SplitTransferView({
       : (visibleDestBuckets[0]?.name ?? bucket);
 
   useEffect(() => {
+    if (sourceBucket !== effectiveSourceBucket) {
+      setS3s3Source({ bucket: effectiveSourceBucket });
+    }
+  }, [sourceBucket, effectiveSourceBucket, setS3s3Source]);
+
+  useEffect(() => {
     if (destBucket !== effectiveDestBucket) {
       setS3s3Dest({ bucket: effectiveDestBucket });
     }
   }, [destBucket, effectiveDestBucket, setS3s3Dest]);
+
+  const sourceObjects = useQuery({
+    queryKey: [
+      "objects",
+      effectiveSourceAccount,
+      effectiveSourceBucket,
+      sourcePrefix,
+    ],
+    queryFn: () =>
+      api.listObjects(
+        effectiveSourceAccount,
+        effectiveSourceBucket,
+        sourcePrefix,
+      ),
+    enabled: !!effectiveSourceAccount && !!effectiveSourceBucket,
+  });
 
   const destObjects = useQuery({
     queryKey: ["objects", effectiveDestAccount, effectiveDestBucket, destPrefix],
@@ -100,8 +195,31 @@ export function S3SplitTransferView({
   });
 
   useEffect(() => {
+    setLeftSelected(new Set());
+  }, [sourcePrefix, effectiveSourceBucket, effectiveSourceAccount]);
+
+  useEffect(() => {
     setRightSelected(new Set());
   }, [destPrefix, effectiveDestBucket, effectiveDestAccount]);
+
+  const invalidateBoth = useCallback(async () => {
+    await Promise.all([
+      qc.invalidateQueries({
+        queryKey: ["objects", effectiveSourceAccount, effectiveSourceBucket],
+      }),
+      qc.invalidateQueries({
+        queryKey: ["objects", effectiveDestAccount, effectiveDestBucket],
+      }),
+    ]);
+    onCopied?.();
+  }, [
+    effectiveDestAccount,
+    effectiveDestBucket,
+    effectiveSourceAccount,
+    effectiveSourceBucket,
+    onCopied,
+    qc,
+  ]);
 
   const copyPayloadTo = useCallback(
     async (
@@ -137,16 +255,13 @@ export function S3SplitTransferView({
           items,
           false,
         );
-        await qc.invalidateQueries({
-          queryKey: ["objects", destAcc, destBkt],
-        });
-        onCopied?.();
+        await invalidateBoth();
         showToast(`Copy started (${items.length})`, "ok");
       } catch (e) {
         showToast(String(e), "err");
       }
     },
-    [onCopied, qc, showToast],
+    [invalidateBoth, showToast],
   );
 
   const hitTarget = useCallback((x: number, y: number): "left" | "right" | null => {
@@ -189,12 +304,6 @@ export function S3SplitTransferView({
       const payload = current.payload;
 
       if (target === "right") {
-        if (
-          payload.accountId === effectiveDestAccount &&
-          payload.bucket === effectiveDestBucket
-        ) {
-          // Allow copy into different prefix of same bucket
-        }
         void copyPayloadTo(
           payload,
           effectiveDestAccount,
@@ -202,18 +311,23 @@ export function S3SplitTransferView({
           destPrefix,
         );
       } else if (target === "left") {
-        void copyPayloadTo(payload, accountId, bucket, prefix);
+        void copyPayloadTo(
+          payload,
+          effectiveSourceAccount,
+          effectiveSourceBucket,
+          sourcePrefix,
+        );
       }
     },
     [
-      accountId,
-      bucket,
       copyPayloadTo,
       destPrefix,
       effectiveDestAccount,
       effectiveDestBucket,
+      effectiveSourceAccount,
+      effectiveSourceBucket,
       hitTarget,
-      prefix,
+      sourcePrefix,
     ],
   );
 
@@ -234,7 +348,6 @@ export function S3SplitTransferView({
         setDropTarget(null);
         return;
       }
-      // Highlight opposite pane only
       if (target === "right" && src.payload.bucket) setDropTarget("right");
       else if (target === "left") setDropTarget("left");
       else setDropTarget(null);
@@ -264,7 +377,6 @@ export function S3SplitTransferView({
   function beginS3Drag(
     e: React.PointerEvent,
     entry: ObjectEntry,
-    side: "left" | "right",
     paneAccount: string,
     paneBucket: string,
     paneEntries: ObjectEntry[],
@@ -295,7 +407,12 @@ export function S3SplitTransferView({
     setInAppDrag(next);
     startPos.current = { x: e.clientX, y: e.clientY };
     armed.current = false;
-    void side;
+  }
+
+  function openSourceEntry(entry: ObjectEntry) {
+    if (entry.isFolder) {
+      setS3s3Source({ prefix: entry.key });
+    }
   }
 
   function openDestEntry(entry: ObjectEntry) {
@@ -304,149 +421,309 @@ export function S3SplitTransferView({
     }
   }
 
+  const uploadToPane = useCallback(
+    async (paneAccount: string, paneBucket: string, panePrefix: string) => {
+      try {
+        const selectedPaths = await open({
+          multiple: true,
+          directory: false,
+        });
+        if (!selectedPaths) return;
+        const paths = Array.isArray(selectedPaths)
+          ? selectedPaths
+          : [selectedPaths];
+        const items = paths.map((localPath) => ({
+          localPath,
+          key: `${panePrefix}${fileName(localPath)}`,
+        }));
+        await api.uploadObjects(paneAccount, paneBucket, items);
+        await qc.invalidateQueries({
+          queryKey: ["objects", paneAccount, paneBucket],
+        });
+        showToast(`Uploaded ${items.length} file(s)`, "ok");
+      } catch (e) {
+        showToast(String(e), "err");
+      }
+    },
+    [qc, showToast],
+  );
+
+  const createFolderInPane = useCallback(async () => {
+    const name = folderName.trim().replace(/^\/+|\/+$/g, "");
+    if (!name) return;
+    const paneAccount =
+      folderTarget === "left" ? effectiveSourceAccount : effectiveDestAccount;
+    const paneBucket =
+      folderTarget === "left" ? effectiveSourceBucket : effectiveDestBucket;
+    const panePrefix =
+      folderTarget === "left" ? sourcePrefix : destPrefix;
+    setFolderPending(true);
+    try {
+      await api.createFolder(paneAccount, paneBucket, `${panePrefix}${name}/`);
+      await qc.invalidateQueries({
+        queryKey: ["objects", paneAccount, paneBucket],
+      });
+      setFolderOpen(false);
+      setFolderName("");
+      showToast("Folder created", "ok");
+    } catch (e) {
+      showToast(String(e), "err");
+    } finally {
+      setFolderPending(false);
+    }
+  }, [
+    destPrefix,
+    effectiveDestAccount,
+    effectiveDestBucket,
+    effectiveSourceAccount,
+    effectiveSourceBucket,
+    folderName,
+    folderTarget,
+    qc,
+    showToast,
+    sourcePrefix,
+  ]);
+
+  function paneBgActions(
+    side: "left" | "right",
+    paneAccount: string,
+    paneBucket: string,
+    panePrefix: string,
+  ): Pick<S3ContextActions, "onNewFolder" | "onUpload" | "onRefresh"> {
+    return {
+      onNewFolder: () => {
+        setFolderTarget(side);
+        setFolderName("");
+        setFolderOpen(true);
+      },
+      onUpload: () => void uploadToPane(paneAccount, paneBucket, panePrefix),
+      onRefresh: () =>
+        void qc.invalidateQueries({
+          queryKey: ["objects", paneAccount, paneBucket, panePrefix],
+        }),
+    };
+  }
+
+  const accountOptions = accounts.data ?? [];
+  const sourceEntries = sourceObjects.data?.entries ?? [];
+  const destEntries = destObjects.data?.entries ?? [];
+
   return (
     <div className="relative flex h-full min-h-0 select-none flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-line bg-toolbar px-3 py-2">
-        <span className="text-[11px] uppercase tracking-wide text-muted">
-          Destination
-        </span>
-        <Select
-          className="max-w-[160px] py-1 text-xs"
-          value={effectiveDestAccount}
-          onChange={(e) =>
-            setS3s3Dest({ accountId: e.target.value, bucket: null, prefix: "" })
-          }
-        >
-          {(accounts.data ?? []).map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </Select>
-        <Select
-          className="max-w-[200px] py-1 text-xs"
-          value={effectiveDestBucket}
-          onChange={(e) => setS3s3Dest({ bucket: e.target.value, prefix: "" })}
-          disabled={!visibleDestBuckets.length}
-        >
-          {visibleDestBuckets.map((b) => (
-            <option key={b.name} value={b.name}>
-              {b.name}
-            </option>
-          ))}
-        </Select>
-        {destBuckets.isLoading && (
-          <Spinner className="h-3.5 w-3.5 text-muted" />
-        )}
-      </div>
-
       <div className="flex min-h-0 flex-1">
-        <div ref={leftRef} className="min-w-0 flex-1 border-r border-line">
-          <S3Pane
-            accountId={accountId}
-            bucket={bucket}
-            prefix={prefix}
-            onPrefixChange={onPrefixChange}
-            entries={entries}
-            loading={loading}
-            error={error}
-            selected={selected}
-            onToggle={onToggle}
-            onSelectAll={onSelectAll}
-            onClearSelection={onClearSelection}
-            onOpenEntry={onOpenEntry}
-            onSelectOnly={onSelectOnly}
-            contextActions={contextActions}
-            compact
-            dropActive={dropTarget === "left" && drag?.source === "s3"}
-            onRowPointerDown={(e, entry) =>
-              beginS3Drag(
-                e,
-                entry,
-                "left",
-                accountId,
-                bucket,
-                entries,
-                selected,
-              )
+        <div
+          ref={leftRef}
+          className="flex min-w-0 flex-1 flex-col border-r border-line"
+        >
+          <PaneLocationBar
+            label="Source"
+            accountId={effectiveSourceAccount}
+            bucket={effectiveSourceBucket}
+            accounts={accountOptions}
+            buckets={visibleSourceBuckets}
+            bucketsLoading={sourceBuckets.isLoading}
+            onAccountChange={(id) =>
+              setS3s3Source({ accountId: id, bucket: null, prefix: "" })
+            }
+            onBucketChange={(name) =>
+              setS3s3Source({ bucket: name, prefix: "" })
             }
           />
+          <div className="min-h-0 flex-1">
+            <S3Pane
+              accountId={effectiveSourceAccount}
+              bucket={effectiveSourceBucket}
+              prefix={sourcePrefix}
+              onPrefixChange={(p) => setS3s3Source({ prefix: p })}
+              entries={sourceEntries}
+              loading={sourceObjects.isLoading}
+              error={sourceObjects.error}
+              selected={leftSelected}
+              onToggle={(key) =>
+                setLeftSelected((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(key)) next.delete(key);
+                  else next.add(key);
+                  return next;
+                })
+              }
+              onSelectAll={() =>
+                setLeftSelected(new Set(sourceEntries.map((e) => e.key)))
+              }
+              onClearSelection={() => setLeftSelected(new Set())}
+              onOpenEntry={openSourceEntry}
+              onSelectOnly={(key) => setLeftSelected(new Set([key]))}
+              contextActions={{
+                onCopyTo: contextActions?.onCopyTo,
+                onMoveTo: contextActions?.onMoveTo,
+                ...paneBgActions(
+                  "left",
+                  effectiveSourceAccount,
+                  effectiveSourceBucket,
+                  sourcePrefix,
+                ),
+                onDelete: async (keys) => {
+                  if (!confirm(`Delete ${keys.length} item(s)?`)) return;
+                  try {
+                    await api.deleteObjects(
+                      effectiveSourceAccount,
+                      effectiveSourceBucket,
+                      keys,
+                    );
+                    await qc.invalidateQueries({
+                      queryKey: [
+                        "objects",
+                        effectiveSourceAccount,
+                        effectiveSourceBucket,
+                      ],
+                    });
+                    showToast("Deleted", "ok");
+                  } catch (err) {
+                    showToast(String(err), "err");
+                  }
+                },
+              }}
+              compact
+              dropActive={dropTarget === "left" && drag?.source === "s3"}
+              onRowPointerDown={(e, entry) =>
+                beginS3Drag(
+                  e,
+                  entry,
+                  effectiveSourceAccount,
+                  effectiveSourceBucket,
+                  sourceEntries,
+                  leftSelected,
+                )
+              }
+            />
+          </div>
         </div>
-        <div ref={rightRef} className="min-w-0 flex-1">
-          <S3Pane
+
+        <div ref={rightRef} className="flex min-w-0 flex-1 flex-col">
+          <PaneLocationBar
+            label="Destination"
             accountId={effectiveDestAccount}
             bucket={effectiveDestBucket}
-            prefix={destPrefix}
-            onPrefixChange={(p) => setS3s3Dest({ prefix: p })}
-            entries={destObjects.data?.entries ?? []}
-            loading={destObjects.isLoading}
-            error={destObjects.error}
-            selected={rightSelected}
-            onToggle={(key) =>
-              setRightSelected((prev) => {
-                const next = new Set(prev);
-                if (next.has(key)) next.delete(key);
-                else next.add(key);
-                return next;
-              })
+            accounts={accountOptions}
+            buckets={visibleDestBuckets}
+            bucketsLoading={destBuckets.isLoading}
+            onAccountChange={(id) =>
+              setS3s3Dest({ accountId: id, bucket: null, prefix: "" })
             }
-            onSelectAll={() =>
-              setRightSelected(
-                new Set(destObjects.data?.entries.map((e) => e.key) ?? []),
-              )
-            }
-            onClearSelection={() => setRightSelected(new Set())}
-            onOpenEntry={openDestEntry}
-            onSelectOnly={(key) => setRightSelected(new Set([key]))}
-            contextActions={{
-              onCopyTo: contextActions?.onCopyTo,
-              onMoveTo: contextActions?.onMoveTo,
-              onDelete: async (keys) => {
-                if (!confirm(`Delete ${keys.length} item(s)?`)) return;
-                try {
-                  await api.deleteObjects(
-                    effectiveDestAccount,
-                    effectiveDestBucket,
-                    keys,
-                  );
-                  await qc.invalidateQueries({
-                    queryKey: [
-                      "objects",
-                      effectiveDestAccount,
-                      effectiveDestBucket,
-                    ],
-                  });
-                  showToast("Deleted", "ok");
-                } catch (err) {
-                  showToast(String(err), "err");
-                }
-              },
-            }}
-            compact
-            dropActive={dropTarget === "right" && drag?.source === "s3"}
-            onRowPointerDown={(e, entry) =>
-              beginS3Drag(
-                e,
-                entry,
-                "right",
-                effectiveDestAccount,
-                effectiveDestBucket,
-                destObjects.data?.entries ?? [],
-                rightSelected,
-              )
+            onBucketChange={(name) =>
+              setS3s3Dest({ bucket: name, prefix: "" })
             }
           />
+          <div className="min-h-0 flex-1">
+            <S3Pane
+              accountId={effectiveDestAccount}
+              bucket={effectiveDestBucket}
+              prefix={destPrefix}
+              onPrefixChange={(p) => setS3s3Dest({ prefix: p })}
+              entries={destEntries}
+              loading={destObjects.isLoading}
+              error={destObjects.error}
+              selected={rightSelected}
+              onToggle={(key) =>
+                setRightSelected((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(key)) next.delete(key);
+                  else next.add(key);
+                  return next;
+                })
+              }
+              onSelectAll={() =>
+                setRightSelected(new Set(destEntries.map((e) => e.key)))
+              }
+              onClearSelection={() => setRightSelected(new Set())}
+              onOpenEntry={openDestEntry}
+              onSelectOnly={(key) => setRightSelected(new Set([key]))}
+              contextActions={{
+                onCopyTo: contextActions?.onCopyTo,
+                onMoveTo: contextActions?.onMoveTo,
+                ...paneBgActions(
+                  "right",
+                  effectiveDestAccount,
+                  effectiveDestBucket,
+                  destPrefix,
+                ),
+                onDelete: async (keys) => {
+                  if (!confirm(`Delete ${keys.length} item(s)?`)) return;
+                  try {
+                    await api.deleteObjects(
+                      effectiveDestAccount,
+                      effectiveDestBucket,
+                      keys,
+                    );
+                    await qc.invalidateQueries({
+                      queryKey: [
+                        "objects",
+                        effectiveDestAccount,
+                        effectiveDestBucket,
+                      ],
+                    });
+                    showToast("Deleted", "ok");
+                  } catch (err) {
+                    showToast(String(err), "err");
+                  }
+                },
+              }}
+              compact
+              dropActive={dropTarget === "right" && drag?.source === "s3"}
+              onRowPointerDown={(e, entry) =>
+                beginS3Drag(
+                  e,
+                  entry,
+                  effectiveDestAccount,
+                  effectiveDestBucket,
+                  destEntries,
+                  rightSelected,
+                )
+              }
+            />
+          </div>
         </div>
       </div>
 
       {drag && cursor && (
         <div
-          className="pointer-events-none fixed z-50 max-w-xs truncate rounded-lg border border-accent/40 bg-panel px-3 py-1.5 text-xs font-medium text-fg shadow-xl"
+          className="pointer-events-none fixed z-50 flex max-w-xs items-center gap-1.5 truncate rounded-lg border border-accent/40 bg-panel px-3 py-1.5 text-xs font-medium text-fg shadow-xl"
           style={{ left: cursor.x + 12, top: cursor.y + 12 }}
         >
-          → {drag.label}
+          <Copy size={12} className="shrink-0" />
+          <span className="truncate">{drag.label}</span>
         </div>
       )}
+
+      <Modal
+        open={folderOpen}
+        onClose={() => setFolderOpen(false)}
+        title="New folder"
+      >
+        <Field label="Folder name">
+          <Input
+            value={folderName}
+            onChange={(e) => setFolderName(e.target.value)}
+            placeholder="assets"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && folderName.trim()) {
+                void createFolderInPane();
+              }
+            }}
+          />
+        </Field>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setFolderOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!folderName.trim() || folderPending}
+            onClick={() => void createFolderInPane()}
+          >
+            Create
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

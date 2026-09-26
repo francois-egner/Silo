@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, Copy, FolderOpen } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Copy } from "lucide-react";
 import { api } from "../../lib/tauri";
+import { BucketIcon } from "../../shared/BucketIcon";
 import type { BucketSettingsTab } from "../../shared/types";
 import { useUiStore } from "../../shared/store";
 import {
@@ -385,7 +386,10 @@ export function BucketSettings({
           <ArrowLeft size={14} />
         </ToolbarButton>
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-semibold">{bucket}</div>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <BucketIcon size={14} className="shrink-0 text-muted" />
+            <div className="truncate text-[13px] font-semibold">{bucket}</div>
+          </div>
           <div className="text-[11px] text-muted">Bucket configuration</div>
         </div>
       </Toolbar>
@@ -423,8 +427,9 @@ export function BucketSettings({
             <div>
               <h3 className="mb-1 text-[12px] font-medium text-muted">Name</h3>
               <div className="flex items-center gap-2">
-                <code className="flex-1 truncate rounded-md border border-line bg-input px-2.5 py-1.5 font-mono text-[13px]">
-                  {bucket}
+                <code className="flex min-w-0 flex-1 items-center gap-1.5 truncate rounded-md border border-line bg-input px-2.5 py-1.5 font-mono text-[13px]">
+                  <BucketIcon size={14} className="shrink-0 text-muted" />
+                  <span className="truncate">{bucket}</span>
                 </code>
                 <Button
                   variant="subtle"
@@ -444,7 +449,7 @@ export function BucketSettings({
             <div className="flex flex-wrap gap-2">
               {onOpenBucket && (
                 <Button variant="subtle" onClick={onOpenBucket}>
-                  <FolderOpen size={16} /> Open bucket
+                  <BucketIcon size={16} /> Open bucket
                 </Button>
               )}
               <Button

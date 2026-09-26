@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Layers3, Search } from "lucide-react";
 import { api } from "../lib/tauri";
@@ -16,6 +16,22 @@ import { SectionHeader } from "../shared/ui";
 import { CommandPalette } from "./CommandPalette";
 import { SidebarTree, type NavTarget } from "./SidebarTree";
 
+const SIDEBAR_MIN = 180;
+const SIDEBAR_MAX = 480;
+const SIDEBAR_DEFAULT = 224;
+const SIDEBAR_WIDTH_KEY = "silo.sidebarWidth";
+
+function loadSidebarWidth(): number {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    const n = raw ? Number(raw) : SIDEBAR_DEFAULT;
+    if (!Number.isFinite(n)) return SIDEBAR_DEFAULT;
+    return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, n));
+  } catch {
+    return SIDEBAR_DEFAULT;
+  }
+}
+
 type Route =
   | { name: "accounts" }
   | { name: "buckets"; accountId: string }
@@ -30,6 +46,8 @@ type Route =
 
 export function AppShell() {
   const [route, setRoute] = useState<Route>({ name: "accounts" });
+  const [sidebarWidth, setSidebarWidth] = useState(loadSidebarWidth);
+  const resizeRef = useRef<{ startX: number; startW: number } | null>(null);
   const activeId = useUiStore((s) => s.activeAccountId);
   const setActive = useUiStore((s) => s.setActiveAccountId);
   const setCommandOpen = useUiStore((s) => s.setCommandOpen);
@@ -44,6 +62,39 @@ export function AppShell() {
       if (id) setActive(id);
     })();
   }, [setActive]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
+    } catch {
+      /* ignore */
+    }
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    function onMove(e: PointerEvent) {
+      const drag = resizeRef.current;
+      if (!drag) return;
+      const next = Math.min(
+        SIDEBAR_MAX,
+        Math.max(SIDEBAR_MIN, drag.startW + (e.clientX - drag.startX)),
+      );
+      setSidebarWidth(next);
+    }
+    function onUp() {
+      resizeRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, []);
 
   const sidebarAccounts = accounts.data ?? [];
 
@@ -135,11 +186,18 @@ export function AppShell() {
 
   return (
     <div className="relative flex h-full bg-app text-fg">
-      <aside className="relative z-10 flex w-56 shrink-0 flex-col border-r border-line bg-sidebar">
+      <aside
+        className="relative z-10 flex shrink-0 flex-col border-r border-line bg-sidebar"
+        style={{ width: sidebarWidth }}
+      >
         <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
-          <div className="flex h-5 w-5 items-center justify-center rounded bg-accent text-[10px] font-bold text-on-accent">
-            S
-          </div>
+          <img
+            src="/silo-icon.png"
+            alt=""
+            width={20}
+            height={20}
+            className="h-5 w-5 shrink-0 rounded"
+          />
           <div className="text-[13px] font-semibold tracking-tight">Silo</div>
         </div>
 
@@ -181,6 +239,21 @@ export function AppShell() {
           Search
           <span className="ml-auto font-mono text-[10px] opacity-70">⌘K</span>
         </button>
+
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          title="Drag to resize"
+          className="absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize touch-none hover:bg-accent/25 active:bg-accent/40"
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            resizeRef.current = { startX: e.clientX, startW: sidebarWidth };
+            document.body.style.cursor = "col-resize";
+            document.body.style.userSelect = "none";
+          }}
+        />
       </aside>
 
       <main className="relative z-10 min-w-0 flex-1 overflow-hidden bg-app">
@@ -226,9 +299,6 @@ export function AppShell() {
                 bucket: route.bucket,
                 prefix,
               })
-            }
-            onBack={() =>
-              setRoute({ name: "buckets", accountId: route.accountId })
             }
             onOpenSettings={() =>
               setRoute({

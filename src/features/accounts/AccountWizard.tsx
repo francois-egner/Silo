@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2 } from "lucide-react";
 import { api } from "../../lib/tauri";
+import { BucketIcon } from "../../shared/BucketIcon";
 import type {
   BucketFilterMode,
   Provider,
@@ -323,6 +324,7 @@ export function AccountWizard({
                       checked={visibleBuckets.includes(b)}
                       onChange={() => toggleBucket(b)}
                     />
+                    <BucketIcon size={13} className="shrink-0 text-muted" />
                     <span className="truncate font-mono text-[12px]">{b}</span>
                   </label>
                 ))}

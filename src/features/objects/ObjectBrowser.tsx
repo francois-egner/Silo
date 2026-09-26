@@ -4,7 +4,6 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
-  ArrowLeft,
   ArrowLeftRight,
   Columns2,
   Copy,
@@ -34,7 +33,7 @@ import {
   ToolbarButton,
 } from "../../shared/ui";
 import { CopyToModal } from "./CopyToModal";
-import { S3Pane } from "./S3Pane";
+import { S3Pane, type S3CopySource } from "./S3Pane";
 import { S3SplitTransferView } from "./S3SplitTransferView";
 import { SplitTransferView } from "./SplitTransferView";
 
@@ -47,14 +46,12 @@ export function ObjectBrowser({
   bucket,
   prefix,
   onPrefixChange,
-  onBack,
   onOpenSettings,
 }: {
   accountId: string;
   bucket: string;
   prefix: string;
   onPrefixChange: (prefix: string) => void;
-  onBack: () => void;
   onOpenSettings: () => void;
 }) {
   const qc = useQueryClient();
@@ -78,6 +75,11 @@ export function ObjectBrowser({
   const [copyOpen, setCopyOpen] = useState(false);
   const [copyMove, setCopyMove] = useState(false);
   const [copyEntries, setCopyEntries] = useState<ObjectEntry[]>([]);
+  const [copySource, setCopySource] = useState<S3CopySource>({
+    accountId,
+    bucket,
+    prefix,
+  });
 
   useEffect(() => {
     clearSelection();
@@ -317,35 +319,27 @@ export function ObjectBrowser({
         setRenameValue(key);
         setRenameOpen(true);
       },
-      onCopyTo: (ents: ObjectEntry[]) => {
+      onCopyTo: (ents: ObjectEntry[], source: S3CopySource) => {
         setCopyEntries(ents);
+        setCopySource(source);
         setCopyMove(false);
         setCopyOpen(true);
       },
-      onMoveTo: (ents: ObjectEntry[]) => {
+      onMoveTo: (ents: ObjectEntry[], source: S3CopySource) => {
         setCopyEntries(ents);
+        setCopySource(source);
         setCopyMove(true);
         setCopyOpen(true);
       },
+      onNewFolder: () => setFolderOpen(true),
+      onUpload: () => upload.mutate(),
+      onRefresh: () => void invalidate(),
     },
   };
 
   return (
     <div className="flex h-full flex-col">
-      <Toolbar className="justify-between">
-        <div className="flex min-w-0 items-center gap-2">
-          <ToolbarButton onClick={onBack} title="Back">
-            <ArrowLeft size={14} />
-          </ToolbarButton>
-          <div className="min-w-0">
-            <div className="truncate text-[13px] font-semibold text-fg">
-              {bucket}
-            </div>
-            <div className="truncate font-mono text-[11px] text-muted">
-              {prefix || "/"}
-            </div>
-          </div>
-        </div>
+      <Toolbar className="justify-end">
         <div className="flex flex-wrap items-center gap-1.5">
           <SegmentedControl<BrowserViewMode>
             value={viewMode}
@@ -412,6 +406,7 @@ export function ObjectBrowser({
                 objects.data?.entries.filter((e) => selected.has(e.key)) ?? [];
               if (!ents.length) return;
               setCopyEntries(ents);
+              setCopySource({ accountId, bucket, prefix });
               setCopyMove(false);
               setCopyOpen(true);
             }}
@@ -481,7 +476,9 @@ export function ObjectBrowser({
           />
         ) : viewMode === "s3s3" ? (
           <S3SplitTransferView
-            {...listProps}
+            accountId={accountId}
+            bucket={bucket}
+            contextActions={listProps.contextActions}
             onCopied={() => void invalidate()}
           />
         ) : (
@@ -534,9 +531,9 @@ export function ObjectBrowser({
       <CopyToModal
         open={copyOpen}
         onClose={() => setCopyOpen(false)}
-        sourceAccountId={accountId}
-        sourceBucket={bucket}
-        sourcePrefix={prefix}
+        sourceAccountId={copySource.accountId}
+        sourceBucket={copySource.bucket}
+        sourcePrefix={copySource.prefix}
         entries={copyEntries}
         deleteSourceDefault={copyMove}
         onDone={async ({ destAccountId, destBucket, moved }) => {
@@ -544,7 +541,13 @@ export function ObjectBrowser({
             queryKey: ["objects", destAccountId, destBucket],
           });
           if (moved) {
-            await invalidate();
+            await qc.invalidateQueries({
+              queryKey: [
+                "objects",
+                copySource.accountId,
+                copySource.bucket,
+              ],
+            });
             clearSelection();
           }
           showToast(moved ? "Move started" : "Copy started", "ok");

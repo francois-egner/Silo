@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronDown, ChevronRight, Folder, Loader2 } from "lucide-react";
 import { api } from "../../lib/tauri";
+import { BucketIcon } from "../../shared/BucketIcon";
 import { filterVisibleBuckets } from "../../shared/buckets";
 import type { ObjectEntry } from "../../shared/types";
-import { Button, Field, Input, Modal, Select } from "../../shared/ui";
+import { Button, Field, Modal, Select, Spinner } from "../../shared/ui";
 
 export async function collectS3KeysUnderPrefix(
   accountId: string,
@@ -34,9 +36,10 @@ export async function buildCopyItems(
   entries: { key: string; name: string; isFolder: boolean }[],
   destPrefix: string,
 ): Promise<{ sourceKey: string; destKey: string }[]> {
-  const prefix = destPrefix.endsWith("/") || destPrefix === ""
-    ? destPrefix
-    : `${destPrefix}/`;
+  const prefix =
+    destPrefix.endsWith("/") || destPrefix === ""
+      ? destPrefix
+      : `${destPrefix}/`;
   const items: { sourceKey: string; destKey: string }[] = [];
 
   for (const e of entries) {
@@ -56,6 +59,232 @@ export async function buildCopyItems(
     }
   }
   return items;
+}
+
+function folderNodeKey(prefix: string) {
+  return prefix || "__root__";
+}
+
+function DestFolderNode({
+  accountId,
+  bucket,
+  prefix,
+  depth,
+  selectedPrefix,
+  expanded,
+  onToggle,
+  onSelect,
+}: {
+  accountId: string;
+  bucket: string;
+  prefix: string;
+  depth: number;
+  selectedPrefix: string;
+  expanded: Set<string>;
+  onToggle: (id: string) => void;
+  onSelect: (prefix: string) => void;
+}) {
+  const id = folderNodeKey(prefix);
+  const open = expanded.has(id);
+  const listing = useQuery({
+    queryKey: ["objects", accountId, bucket, prefix],
+    queryFn: () => api.listObjects(accountId, bucket, prefix),
+    enabled: open,
+    staleTime: 30_000,
+  });
+  const children = (listing.data?.entries ?? []).filter((e) => e.isFolder);
+  const name = prefix.replace(/\/$/, "").split("/").pop() ?? prefix;
+  const isSelected = selectedPrefix === prefix;
+
+  return (
+    <div>
+      <div
+        className={`group flex w-full items-center gap-0.5 rounded-md text-left text-[13px] ${
+          isSelected ? "bg-selected text-on-accent" : "text-fg hover:bg-hover"
+        }`}
+        style={{ paddingLeft: 8 + depth * 12 }}
+      >
+        <button
+          type="button"
+          className={`shrink-0 rounded p-0.5 ${
+            isSelected ? "text-on-accent/80 hover:text-on-accent" : "text-muted hover:text-fg"
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle(id);
+          }}
+        >
+          {listing.isFetching && open ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : open ? (
+            <ChevronDown size={12} />
+          ) : (
+            <ChevronRight size={12} />
+          )}
+        </button>
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 pr-2"
+          onClick={() => onSelect(prefix)}
+          onDoubleClick={() => onToggle(id)}
+        >
+          <Folder size={13} className="shrink-0 opacity-80" />
+          <span className="truncate">{name}</span>
+        </button>
+      </div>
+      {open &&
+        children.map((f) => (
+          <DestFolderNode
+            key={f.key}
+            accountId={accountId}
+            bucket={bucket}
+            prefix={f.key}
+            depth={depth + 1}
+            selectedPrefix={selectedPrefix}
+            expanded={expanded}
+            onToggle={onToggle}
+            onSelect={onSelect}
+          />
+        ))}
+    </div>
+  );
+}
+
+function ancestorPrefixes(prefix: string): Set<string> {
+  const parents = new Set([folderNodeKey("")]);
+  const segs = prefix.split("/").filter(Boolean);
+  let path = "";
+  for (let i = 0; i < segs.length - 1; i++) {
+    path += `${segs[i]}/`;
+    parents.add(folderNodeKey(path));
+  }
+  return parents;
+}
+
+function DestFolderTree({
+  accountId,
+  bucket,
+  selectedPrefix,
+  onSelect,
+}: {
+  accountId: string;
+  bucket: string;
+  selectedPrefix: string;
+  onSelect: (prefix: string) => void;
+}) {
+  const [expanded, setExpanded] = useState<Set<string>>(() =>
+    ancestorPrefixes(selectedPrefix),
+  );
+
+  useEffect(() => {
+    setExpanded(ancestorPrefixes(selectedPrefix));
+    // Only reset expansion when destination location identity changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId, bucket]);
+
+  const root = useQuery({
+    queryKey: ["objects", accountId, bucket, ""],
+    queryFn: () => api.listObjects(accountId, bucket, ""),
+    enabled: !!accountId && !!bucket,
+    staleTime: 30_000,
+  });
+
+  const folders = (root.data?.entries ?? []).filter((e) => e.isFolder);
+  const rootOpen = expanded.has(folderNodeKey(""));
+  const rootSelected = selectedPrefix === "";
+
+  function toggle(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <div className="max-h-64 min-h-[12rem] overflow-auto rounded-md border border-line bg-sidebar py-1">
+      {!bucket ? (
+        <div className="px-3 py-8 text-center text-[13px] text-muted">
+          Select a bucket first
+        </div>
+      ) : root.isLoading ? (
+        <div className="flex justify-center py-10">
+          <Spinner className="h-5 w-5" />
+        </div>
+      ) : root.isError ? (
+        <div className="m-2 rounded-md border border-danger/30 bg-danger/10 px-2 py-2 text-[12px] text-danger">
+          {String(root.error)}
+        </div>
+      ) : (
+        <>
+          <div
+            className={`group flex w-full items-center gap-0.5 rounded-md px-2 text-left text-[13px] ${
+              rootSelected
+                ? "bg-selected text-on-accent"
+                : "text-fg hover:bg-hover"
+            }`}
+          >
+            <button
+              type="button"
+              className={`shrink-0 rounded p-0.5 ${
+                rootSelected
+                  ? "text-on-accent/80 hover:text-on-accent"
+                  : "text-muted hover:text-fg"
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggle(folderNodeKey(""));
+              }}
+            >
+              {root.isFetching && rootOpen ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : rootOpen ? (
+                <ChevronDown size={12} />
+              ) : (
+                <ChevronRight size={12} />
+              )}
+            </button>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 pr-2"
+              onClick={() => onSelect("")}
+              onDoubleClick={() => toggle(folderNodeKey(""))}
+            >
+              <BucketIcon size={13} className="shrink-0" />
+              <span className="truncate font-medium">{bucket}</span>
+              <span
+                className={`ml-1 text-[11px] ${
+                  rootSelected ? "text-on-accent/70" : "text-muted"
+                }`}
+              >
+                (root)
+              </span>
+            </button>
+          </div>
+          {rootOpen &&
+            folders.map((f) => (
+              <DestFolderNode
+                key={f.key}
+                accountId={accountId}
+                bucket={bucket}
+                prefix={f.key}
+                depth={1}
+                selectedPrefix={selectedPrefix}
+                expanded={expanded}
+                onToggle={toggle}
+                onSelect={onSelect}
+              />
+            ))}
+          {rootOpen && !folders.length && (
+            <div className="px-3 py-2 pl-10 text-[12px] text-muted">
+              No folders in this bucket
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 export function CopyToModal({
@@ -98,7 +327,7 @@ export function CopyToModal({
     if (!open) return;
     setDestAccountId(sourceAccountId);
     setDestBucket(sourceBucket);
-    setDestPrefix(sourcePrefix);
+    setDestPrefix("");
     setDeleteSource(deleteSourceDefault);
     setError(null);
     setBusy(false);
@@ -126,8 +355,13 @@ export function CopyToModal({
     if (!visibleBuckets.length) return;
     if (!visibleBuckets.some((b) => b.name === destBucket)) {
       setDestBucket(visibleBuckets[0].name);
+      setDestPrefix("");
     }
   }, [visibleBuckets, destBucket]);
+
+  const destPathLabel = destPrefix
+    ? `${destBucket}/${destPrefix.replace(/\/$/, "")}`
+    : `${destBucket}/`;
 
   async function confirm() {
     if (!destBucket || !entries.length) return;
@@ -142,10 +376,19 @@ export function CopyToModal({
           name: e.name,
           isFolder: e.isFolder,
         })),
-        destPrefix.trim(),
+        destPrefix,
       );
       if (!items.length) {
         setError("Nothing to copy");
+        setBusy(false);
+        return;
+      }
+      if (
+        sourceAccountId === destAccountId &&
+        sourceBucket === destBucket &&
+        items.every((i) => i.sourceKey === i.destKey)
+      ) {
+        setError("Same location — choose a different folder");
         setBusy(false);
         return;
       }
@@ -175,46 +418,58 @@ export function CopyToModal({
       open={open}
       onClose={onClose}
       title={deleteSourceDefault ? "Move to…" : "Copy to…"}
+      wide
     >
       <div className="mb-3 text-sm text-muted">
         {entries.length} item{entries.length === 1 ? "" : "s"} from{" "}
         <span className="font-mono text-fg">{sourceBucket}</span>
       </div>
 
-      <Field label="Destination account">
-        <Select
-          value={destAccountId}
-          onChange={(e) => setDestAccountId(e.target.value)}
-        >
-          {(accounts.data ?? []).map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </Select>
-      </Field>
+      <div className="mb-3 grid gap-3 sm:grid-cols-2">
+        <Field label="Destination account">
+          <Select
+            value={destAccountId}
+            onChange={(e) => {
+              setDestAccountId(e.target.value);
+              setDestPrefix("");
+            }}
+          >
+            {(accounts.data ?? []).map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
 
-      <Field label="Destination bucket">
-        <Select
-          value={destBucket}
-          onChange={(e) => setDestBucket(e.target.value)}
-          disabled={!visibleBuckets.length}
-        >
-          {visibleBuckets.map((b) => (
-            <option key={b.name} value={b.name}>
-              {b.name}
-            </option>
-          ))}
-        </Select>
-      </Field>
+        <Field label="Destination bucket">
+          <Select
+            value={destBucket}
+            onChange={(e) => {
+              setDestBucket(e.target.value);
+              setDestPrefix("");
+            }}
+            disabled={!visibleBuckets.length}
+          >
+            {visibleBuckets.map((b) => (
+              <option key={b.name} value={b.name}>
+                {b.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
 
-      <Field label="Destination prefix">
-        <Input
-          className="font-mono"
-          value={destPrefix}
-          onChange={(e) => setDestPrefix(e.target.value)}
-          placeholder="folder/ or leave empty for bucket root"
+      <Field label="Destination folder">
+        <DestFolderTree
+          accountId={destAccountId}
+          bucket={destBucket}
+          selectedPrefix={destPrefix}
+          onSelect={setDestPrefix}
         />
+        <div className="mt-1.5 truncate font-mono text-[11px] text-muted">
+          Selected: <span className="text-fg">{destPathLabel}</span>
+        </div>
       </Field>
 
       <label className="mb-4 flex items-center gap-2 text-sm text-muted">

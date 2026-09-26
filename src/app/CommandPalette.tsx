@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { HardDrive, Layers3 } from "lucide-react";
 import { api } from "../lib/tauri";
+import { BucketIcon } from "../shared/BucketIcon";
 import { filterVisibleBuckets } from "../shared/buckets";
 import { useUiStore } from "../shared/store";
 
@@ -48,10 +50,16 @@ export function CommandPalette({
   }, [open, setOpen]);
 
   const actions = useMemo(() => {
-    const items: { id: string; label: string; run: () => void }[] = [
+    const items: {
+      id: string;
+      label: string;
+      icon: ReactNode;
+      run: () => void;
+    }[] = [
       {
         id: "accounts",
         label: "Go to accounts",
+        icon: <Layers3 size={14} className="shrink-0" />,
         run: () => {
           onGoAccounts();
           setOpen(false);
@@ -62,6 +70,7 @@ export function CommandPalette({
       items.push({
         id: "buckets",
         label: "Go to buckets",
+        icon: <BucketIcon size={14} className="shrink-0" />,
         run: () => {
           onGoBuckets(activeId);
           setOpen(false);
@@ -72,6 +81,7 @@ export function CommandPalette({
       items.push({
         id: `acc-${a.id}`,
         label: `Account · ${a.name}`,
+        icon: <HardDrive size={14} className="shrink-0" />,
         run: async () => {
           await api.setActiveAccount(a.id);
           useUiStore.getState().setActiveAccountId(a.id);
@@ -83,7 +93,8 @@ export function CommandPalette({
     for (const b of visibleBuckets) {
       items.push({
         id: `bkt-${b.name}`,
-        label: `Bucket · ${b.name}`,
+        label: b.name,
+        icon: <BucketIcon size={14} className="shrink-0" />,
         run: () => {
           if (activeId) onOpenBucket(activeId, b.name);
           setOpen(false);
@@ -120,10 +131,11 @@ export function CommandPalette({
           {actions.map((a) => (
             <li key={a.id}>
               <button
-                className="w-full px-3 py-1.5 text-left text-[13px] hover:bg-selected hover:text-on-accent"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] hover:bg-selected hover:text-on-accent"
                 onClick={a.run}
               >
-                {a.label}
+                {a.icon}
+                <span className="truncate">{a.label}</span>
               </button>
             </li>
           ))}

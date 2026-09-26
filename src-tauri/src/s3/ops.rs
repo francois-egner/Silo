@@ -199,8 +199,9 @@ pub async fn copy_object(
     source_key: &str,
     dest_key: &str,
 ) -> AppResult<()> {
+    // Leading slash is accepted by AWS and required by some S3-compatible stores.
     let copy_source = format!(
-        "{}/{}",
+        "/{}/{}",
         source_bucket,
         encode_key_for_copy(source_key)
     );
@@ -211,7 +212,17 @@ pub async fn copy_object(
         .copy_source(copy_source)
         .send()
         .await
-        .map_err(map_sdk_err)?;
+        .map_err(|e| {
+            tracing::warn!(
+                src_bucket = %source_bucket,
+                source_key = %source_key,
+                dest_bucket = %dest_bucket,
+                dest_key = %dest_key,
+                error = %crate::error::format_error_chain(&e),
+                "S3 CopyObject failed"
+            );
+            map_sdk_err(e)
+        })?;
     Ok(())
 }
 
